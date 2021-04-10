@@ -824,6 +824,9 @@ struct IRenoir
 	mn::Pool command_pool;
 	Renoir_Settings settings;
 
+	mn::Str info_description;
+	size_t gpu_memory_in_bytes;
+
 	// global command list
 	Renoir_Command *command_list_head;
 	Renoir_Command *command_list_tail;
@@ -1194,9 +1197,9 @@ _renoir_dx11_command_execute(IRenoir* self, Renoir_Command* command)
 			auto res = self->adapter->GetDesc(&dxgi_adapter_desc);
 			assert(SUCCEEDED(res));
 
-			auto description = mn::from_os_encoding(mn::block_from(dxgi_adapter_desc.Description));
-			mn_defer(mn::str_free(description));
-			mn::log_info("D3D11 Renderer: {}", description);
+			self->info_description = mn::from_os_encoding(mn::block_from(dxgi_adapter_desc.Description));
+			self->gpu_memory_in_bytes = dxgi_adapter_desc.DedicatedVideoMemory;
+			mn::log_info("D3D11 Renderer: {}", self->info_description);
 			mn::log_info("D3D11 Video Memory: {}Mb", dxgi_adapter_desc.DedicatedVideoMemory / 1024 / 1024);
 		}
 		else
@@ -1215,9 +1218,9 @@ _renoir_dx11_command_execute(IRenoir* self, Renoir_Command* command)
 			res = dxgi_adapter->GetDesc(&dxgi_adapter_desc);
 			assert(SUCCEEDED(res));
 
-			auto description = mn::from_os_encoding(mn::block_from(dxgi_adapter_desc.Description));
-			mn_defer(mn::str_free(description));
-			mn::log_info("D3D11 Renderer: {}", description);
+			self->info_description = mn::from_os_encoding(mn::block_from(dxgi_adapter_desc.Description));
+			self->gpu_memory_in_bytes = dxgi_adapter_desc.DedicatedVideoMemory;
+			mn::log_info("D3D11 Renderer: {}", self->info_description);
 			mn::log_info("D3D11 Video Memory: {}Mb", dxgi_adapter_desc.DedicatedVideoMemory / 1024 / 1024);
 		}
 		break;
@@ -3413,6 +3416,7 @@ _renoir_dx11_init(Renoir* api, Renoir_Settings settings, void*)
 	self->handle_pool = mn::pool_new(sizeof(Renoir_Handle), 128);
 	self->command_pool = mn::pool_new(sizeof(Renoir_Command), 128);
 	self->settings = settings;
+	self->info_description = mn::str_new();
 	self->sampler_cache = mn::buf_new<Renoir_Handle*>();
 	self->pipeline_cache = mn::buf_new<Renoir_Handle*>();
 	self->alive_handles = mn::map_new<Renoir_Handle*, Renoir_Leak_Info>();
@@ -3456,6 +3460,7 @@ _renoir_dx11_dispose(Renoir* api)
 	}
 	mn::pool_free(self->handle_pool);
 	mn::pool_free(self->command_pool);
+	mn::str_free(self->info_description);
 	mn::buf_free(self->sampler_cache);
 	mn::buf_free(self->pipeline_cache);
 	mn::map_free(self->alive_handles);
@@ -3472,6 +3477,17 @@ static RENOIR_TEXTURE_ORIGIN
 _renoir_dx11_texture_origin()
 {
 	return RENOIR_TEXTURE_ORIGIN_TOP_LEFT;
+}
+
+static Renoir_Info
+_renoir_dx11_info(Renoir* api)
+{
+	auto self = api->ctx;
+
+	Renoir_Info res{};
+	res.description = self->info_description.ptr;
+	res.gpu_memory_in_bytes = self->gpu_memory_in_bytes;
+	return res;
 }
 
 static void
@@ -4789,6 +4805,7 @@ _renoir_load_api(Renoir* api)
 
 	api->name = _renoir_dx11_name;
 	api->texture_origin = _renoir_dx11_texture_origin;
+	api->info = _renoir_dx11_info;
 
 	api->handle_ref = _renoir_dx11_handle_ref;
 	api->flush = _renoir_dx11_flush;

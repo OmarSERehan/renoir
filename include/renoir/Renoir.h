@@ -363,6 +363,11 @@ typedef struct Renoir_Buffer_Storage_Bind_Desc {
 	int start_slot;
 } Renoir_Buffer_Storage_Bind_Desc;
 
+typedef struct Renoir_Info {
+	const char* description; // description of the gpu renoir is currently using
+	size_t gpu_memory_in_bytes; // gpu memory size, in case we can't get memory size we set it to 0
+} Renoir_Info;
+
 struct IRenoir;
 
 typedef struct Renoir
@@ -374,9 +379,10 @@ typedef struct Renoir
 
 	const char* (*name)();
 	RENOIR_TEXTURE_ORIGIN (*texture_origin)();
+	Renoir_Info (*info)(struct Renoir* api);
 
-	void (*handle_ref)(struct Renoir* self, void* handle);
-	void (*flush)(struct Renoir* self, void* device, void* context);
+	void (*handle_ref)(struct Renoir* api, void* handle);
+	void (*flush)(struct Renoir* api, void* device, void* context);
 
 	Renoir_Swapchain (*swapchain_new)(struct Renoir* api, int width, int height, void* window, void* display);
 	void (*swapchain_free)(struct Renoir* api, Renoir_Swapchain view);

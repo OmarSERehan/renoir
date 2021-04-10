@@ -1223,6 +1223,8 @@ struct IRenoir
 	mn::Pool command_pool;
 	Renoir_Settings settings;
 
+	mn::Str info_description;
+
 	// global command list
 	Renoir_Command *command_list_head;
 	Renoir_Command *command_list_tail;
@@ -1441,15 +1443,18 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 	case RENOIR_COMMAND_KIND_INIT:
 	{
 		renoir_gl450_context_bind(self->ctx);
+		auto renderer = glGetString(GL_RENDERER);
+		auto version = glGetString(GL_VERSION);
+		auto shader = glGetString(GL_SHADING_LANGUAGE_VERSION);
 		if (self->settings.external_context)
 		{
 			// we just need to init glew in case of external context
 			GLenum glew_result = glewInit();
 			assert(glew_result == GLEW_OK && "glewInit failed");
 
-			mn::log_info("OpenGL Renderer: {}", glGetString(GL_RENDERER));
-			mn::log_info("OpenGL Version: {}", glGetString(GL_VERSION));
-			mn::log_info("GLSL Version: {}", glGetString(GL_SHADING_LANGUAGE_VERSION));
+			mn::log_info("OpenGL Renderer: {}", renderer);
+			mn::log_info("OpenGL Version: {}", version);
+			mn::log_info("GLSL Version: {}", shader);
 
 			GLint major = 0, minor = 0;
 			glGetIntegerv(GL_MAJOR_VERSION, &major);
@@ -1471,6 +1476,8 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 		glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &max_samplers);
 		mn::buf_resize(self->state.last_samplers, max_samplers);
 		assert(_renoir_gl450_check());
+
+		self->info_description = mn::strf("Renderer: {}, Version: {}, GLSL Version: {}", renderer, version, shader);
 		break;
 	}
 	case RENOIR_COMMAND_KIND_SWAPCHAIN_NEW:
@@ -3069,6 +3076,7 @@ _renoir_gl450_init(Renoir* api, Renoir_Settings settings, void* display)
 	self->handle_pool = mn::pool_new(sizeof(Renoir_Handle), 128);
 	self->command_pool = mn::pool_new(sizeof(Renoir_Command), 128);
 	self->settings = settings;
+	self->info_description = mn::str_new();
 	self->ctx = ctx;
 	self->sampler_cache = mn::buf_new<Renoir_Handle*>();
 	self->state = _renoir_gl450_state_new();
@@ -3111,6 +3119,7 @@ _renoir_gl450_dispose(Renoir* api)
 	renoir_gl450_context_free(self->ctx);
 	mn::pool_free(self->handle_pool);
 	mn::pool_free(self->command_pool);
+	mn::str_free(self->info_description);
 	mn::buf_free(self->sampler_cache);
 	_renoir_gl450_state_free(self->state);
 	mn::map_free(self->alive_handles);
@@ -3127,6 +3136,16 @@ static RENOIR_TEXTURE_ORIGIN
 _renoir_gl450_texture_origin()
 {
 	return RENOIR_TEXTURE_ORIGIN_BOTTOM_LEFT;
+}
+
+static Renoir_Info
+_renoir_gl450_info(Renoir* api)
+{
+	auto self = api->ctx;
+
+	Renoir_Info res{};
+	res.description = self->info_description.ptr;
+	return res;
 }
 
 static void
@@ -4430,6 +4449,7 @@ _renoir_load_api(Renoir* api)
 
 	api->name = _renoir_gl450_name;
 	api->texture_origin = _renoir_gl450_texture_origin;
+	api->info = _renoir_gl450_info;
 
 	api->handle_ref = _renoir_gl450_handle_ref;
 	api->flush = _renoir_gl450_flush;
