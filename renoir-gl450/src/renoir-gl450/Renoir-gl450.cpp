@@ -2283,6 +2283,7 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 
 		if (command->pass_clear.desc.flags & RENOIR_CLEAR_DEPTH)
 		{
+			glDepthMask(GL_TRUE);
 			glClearDepth(command->pass_clear.desc.depth);
 			glClearStencil(command->pass_clear.desc.stencil);
 			clear_bits |= GL_DEPTH_BUFFER_BIT;
