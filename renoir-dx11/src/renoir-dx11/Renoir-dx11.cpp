@@ -1197,7 +1197,7 @@ _renoir_dx11_command_execute(IRenoir* self, Renoir_Command* command)
 			auto res = self->adapter->GetDesc(&dxgi_adapter_desc);
 			assert(SUCCEEDED(res));
 
-			self->info_description = mn::from_os_encoding(mn::block_from(dxgi_adapter_desc.Description));
+			self->info_description = mn::from_os_encoding(mn::block_from(dxgi_adapter_desc.Description), mn::allocator_top());
 			self->gpu_memory_in_bytes = dxgi_adapter_desc.DedicatedVideoMemory;
 			mn::log_info("D3D11 Renderer: {}", self->info_description);
 			mn::log_info("D3D11 Video Memory: {}Mb", dxgi_adapter_desc.DedicatedVideoMemory / 1024 / 1024);
@@ -1218,7 +1218,7 @@ _renoir_dx11_command_execute(IRenoir* self, Renoir_Command* command)
 			res = dxgi_adapter->GetDesc(&dxgi_adapter_desc);
 			assert(SUCCEEDED(res));
 
-			self->info_description = mn::from_os_encoding(mn::block_from(dxgi_adapter_desc.Description));
+			self->info_description = mn::from_os_encoding(mn::block_from(dxgi_adapter_desc.Description), mn::allocator_top());
 			self->gpu_memory_in_bytes = dxgi_adapter_desc.DedicatedVideoMemory;
 			mn::log_info("D3D11 Renderer: {}", self->info_description);
 			mn::log_info("D3D11 Video Memory: {}Mb", dxgi_adapter_desc.DedicatedVideoMemory / 1024 / 1024);
@@ -3507,10 +3507,6 @@ _renoir_dx11_flush(Renoir* api, void* device, void* context)
 
 	self->device = (ID3D11Device*)device;
 	self->context = (ID3D11DeviceContext*)context;
-	mn_defer({
-		self->device = nullptr;
-		self->context = nullptr;
-	});
 
 	// process commands
 	for(auto it = self->command_list_head; it != nullptr; it = it->next)
