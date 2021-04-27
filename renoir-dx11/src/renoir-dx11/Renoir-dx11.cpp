@@ -23,6 +23,24 @@
 #include <d3dcompiler.h>
 #include <dxgi.h>
 
+const char* DEPTH_RESOLVE_COMPUTE = R"""(
+Texture2DMS<float> input: register(t0);
+RWTexture2D<float> output: register(u0);
+
+[numthreads(16, 16, 1)]
+void main(uint3 dispatchThreadId: SV_DispatchThreadID)
+{
+	uint2 dim;
+	uint sampleCount;
+	input.GetDimensions(dim.x, dim.y, sampleCount);
+
+	float result = 1;
+	for (uint i = 0; i < sampleCount; ++i)
+		result = min(result, input.Load(dispatchThreadId.xy, i).r);
+	output[dispatchThreadId.xy] = result;
+}
+)""";
+
 inline static int
 _renoir_buffer_type_to_dx(RENOIR_BUFFER type)
 {
@@ -111,7 +129,7 @@ _renoir_pixelformat_is_depth(RENOIR_PIXELFORMAT format)
 }
 
 inline static DXGI_FORMAT
-_renoir_pixelformat_depth_to_dx_shader_view(RENOIR_PIXELFORMAT format)
+_renoir_pixelformat_depth_to_dx_srv(RENOIR_PIXELFORMAT format)
 {
 	switch(format)
 	{
@@ -128,6 +146,17 @@ _renoir_pixelformat_depth_to_dx_depth_view(RENOIR_PIXELFORMAT format)
 	{
 	case RENOIR_PIXELFORMAT_D24S8: return DXGI_FORMAT_D24_UNORM_S8_UINT;
 	case RENOIR_PIXELFORMAT_D32: return DXGI_FORMAT_D32_FLOAT;
+	default: assert(false && "unreachable"); return (DXGI_FORMAT)0;
+	}
+}
+
+inline static DXGI_FORMAT
+_renoir_pixelformat_depth_to_dx_uav(RENOIR_PIXELFORMAT format)
+{
+	switch(format)
+	{
+	case RENOIR_PIXELFORMAT_D24S8: return DXGI_FORMAT_R32_FLOAT;
+	case RENOIR_PIXELFORMAT_D32: return DXGI_FORMAT_R32_FLOAT;
 	default: assert(false && "unreachable"); return (DXGI_FORMAT)0;
 	}
 }
@@ -390,6 +419,9 @@ struct Renoir_Handle
 			ID3D11Texture3D* texture3d_staging;
 			// render target part
 			ID3D11Texture2D* render_color_buffer;
+			// shader resource view used in case msaa is enabled for this render target and it's
+			// a depth target so that we can resolve it using compute shader
+			ID3D11ShaderResourceView* render_depth_buffer_srv;
 			Renoir_Texture_Desc desc;
 		} texture;
 
@@ -827,6 +859,13 @@ struct IRenoir
 	mn::Str info_description;
 	size_t gpu_memory_in_bytes;
 
+	// handle to the default pipeline, because we don't require the user to set a pipeline
+	// on pass clear, which is a major over sight, we'll solve it soon
+	Renoir_Handle* default_pipeline;
+	// MSAA depth buffers can't be resolved using ResolveSubresource so we have this compute
+	// shader to do the resolve ourselves
+	ID3D11ComputeShader* depth_resolve_compute;
+
 	// global command list
 	Renoir_Command *command_list_head;
 	Renoir_Command *command_list_tail;
@@ -1183,6 +1222,294 @@ _renoir_dx11_input_layout_create(IRenoir* self, Renoir_Handle* h, const Renoir_D
 	assert(SUCCEEDED(res));
 }
 
+inline static Renoir_Handle*
+_renoir_dx11_sampler_new(IRenoir* self, Renoir_Sampler_Desc desc)
+{
+	auto h = _renoir_dx11_handle_new(self, RENOIR_HANDLE_KIND_SAMPLER);
+	h->sampler.desc = desc;
+
+	auto command = _renoir_dx11_command_new(self, RENOIR_COMMAND_KIND_SAMPLER_NEW);
+	command->sampler_new.handle = h;
+	command->sampler_new.desc = desc;
+	_renoir_dx11_command_process(self, command);
+	return h;
+}
+
+inline static void
+_renoir_dx11_sampler_free(IRenoir* self, Renoir_Handle* h)
+{
+	auto command = _renoir_dx11_command_new(self, RENOIR_COMMAND_KIND_SAMPLER_FREE);
+	command->sampler_free.handle = h;
+	_renoir_dx11_command_process(self, command);
+}
+
+inline static bool
+operator==(const Renoir_Sampler_Desc& a, const Renoir_Sampler_Desc& b)
+{
+	return (
+		a.filter == b.filter &&
+		a.u == b.u &&
+		a.v == b.v &&
+		a.w == b.w &&
+		a.compare == b.compare &&
+		a.border.r == b.border.r &&
+		a.border.g == b.border.g &&
+		a.border.b == b.border.b &&
+		a.border.a == b.border.a
+	);
+}
+
+inline static Renoir_Handle*
+_renoir_dx11_pipeline_new(IRenoir* self, Renoir_Pipeline_Desc desc)
+{
+	_renoir_dx11_pipeline_desc_defaults(&desc);
+
+	mn::mutex_lock(self->mtx);
+	mn_defer(mn::mutex_unlock(self->mtx));
+
+	auto h = _renoir_dx11_handle_new(self, RENOIR_HANDLE_KIND_PIPELINE);
+	h->pipeline.desc = desc;
+
+	auto command = _renoir_dx11_command_new(self, RENOIR_COMMAND_KIND_PIPELINE_NEW);
+	command->pipeline_new.handle = h;
+	_renoir_dx11_command_process(self, command);
+	return h;
+}
+
+inline static void
+_renoir_dx11_pipeline_free(IRenoir* self, Renoir_Handle* pipeline)
+{
+	assert(pipeline != nullptr);
+
+	mn::mutex_lock(self->mtx);
+	mn_defer(mn::mutex_unlock(self->mtx));
+	auto command = _renoir_dx11_command_new(self, RENOIR_COMMAND_KIND_PIPELINE_FREE);
+	command->pipeline_free.handle = pipeline;
+	_renoir_dx11_command_process(self, command);
+}
+
+inline static void
+_renoir_dx11_pipeline_use(IRenoir* self, Renoir_Handle* h)
+{
+	self->context->OMSetBlendState(h->pipeline.blend_state, nullptr, 0xFFFFFFFF);
+	self->context->OMSetDepthStencilState(h->pipeline.depth_state, 1);
+	self->context->RSSetState(h->pipeline.raster_state);
+}
+
+inline static bool
+operator==(const Renoir_Rasterizer_Desc& a, const Renoir_Rasterizer_Desc& b)
+{
+	if (a.cull != b.cull)
+		return false;
+	if (a.cull == RENOIR_SWITCH_ENABLE)
+	{
+		if (a.cull_face != b.cull_face)
+			return false;
+		if (a.cull_front != b.cull_front)
+			return false;
+	}
+	if (a.scissor != b.scissor)
+		return false;
+	return true;
+}
+
+inline static bool
+operator!=(const Renoir_Rasterizer_Desc& a, const Renoir_Rasterizer_Desc& b)
+{
+	return !(a == b);
+}
+
+inline static bool
+operator==(const Renoir_Depth_Desc& a, const Renoir_Depth_Desc& b)
+{
+	if (a.depth != b.depth)
+		return false;
+	if (a.depth == RENOIR_SWITCH_ENABLE)
+	{
+		if (a.depth_write_mask != b.depth_write_mask)
+			return false;
+	}
+	return true;
+}
+
+inline static bool
+operator!=(const Renoir_Depth_Desc& a, const Renoir_Depth_Desc& b)
+{
+	return !(a == b);
+}
+
+inline static bool
+operator==(const Renoir_Blend_Desc& a, const Renoir_Blend_Desc& b)
+{
+	if (a.enabled != b.enabled)
+		return false;
+	if (a.enabled == RENOIR_SWITCH_ENABLE)
+	{
+		if (a.src_rgb != b.src_rgb)
+			return false;
+		if (a.dst_rgb != b.dst_rgb)
+			return false;
+		if (a.src_alpha != b.src_alpha)
+			return false;
+		if (a.dst_alpha != b.dst_alpha)
+			return false;
+		if (a.eq_rgb != b.eq_rgb)
+			return false;
+		if (a.eq_alpha != b.eq_alpha)
+			return false;
+	}
+	if (a.color_mask != b.color_mask)
+		return false;
+	return true;
+}
+
+inline static bool
+operator!=(const Renoir_Blend_Desc& a, const Renoir_Blend_Desc& b)
+{
+	return !(a == b);
+}
+
+inline static bool
+operator==(const Renoir_Pipeline_Desc& a, const Renoir_Pipeline_Desc& b)
+{
+	if (a.rasterizer != b.rasterizer)
+		return false;
+	if (a.depth_stencil != b.depth_stencil)
+		return false;
+	if (a.independent_blend != b.independent_blend)
+		return false;
+	if (a.independent_blend == RENOIR_SWITCH_ENABLE)
+	{
+		for (size_t i = 0; i < RENOIR_CONSTANT_COLOR_ATTACHMENT_SIZE; ++i)
+			if (a.blend[i] != b.blend[i])
+				return false;
+	}
+	else
+	{
+		if (a.blend[0] != b.blend[0])
+			return false;
+	}
+	return true;
+}
+
+inline static Renoir_Handle*
+_renoir_dx11_pipeline_get(IRenoir* self, Renoir_Pipeline_Desc desc)
+{
+	size_t best_ix = self->pipeline_cache.count;
+	size_t first_empty_ix = self->pipeline_cache.count;
+	for (size_t i = 0; i < self->pipeline_cache.count; ++i)
+	{
+		auto hpipeline = self->pipeline_cache[i];
+		if (hpipeline == nullptr)
+		{
+			if (first_empty_ix == self->pipeline_cache.count)
+				first_empty_ix = i;
+			continue;
+		}
+
+		if (desc == hpipeline->pipeline.desc)
+		{
+			best_ix = i;
+			break;
+		}
+	}
+
+	// we found what we were looking for
+	if (best_ix < self->pipeline_cache.count)
+	{
+		auto res = self->pipeline_cache[best_ix];
+		// reorder the cache
+		for (size_t i = 0; i < best_ix; ++i)
+		{
+			auto index = best_ix - i - 1;
+			self->pipeline_cache[index + 1] = self->pipeline_cache[index];
+		}
+		self->pipeline_cache[0] = res;
+		return res;
+	}
+
+	// we didn't find a matching pipeline, so create new one
+	size_t pipeline_ix = first_empty_ix;
+
+	// we didn't find an empty slot for the new pipeline so we'll have to make one for it
+	if (pipeline_ix == self->pipeline_cache.count)
+	{
+		auto to_be_evicted = mn::buf_top(self->pipeline_cache);
+		for (size_t i = 0; i + 1 < self->pipeline_cache.count; ++i)
+		{
+			auto index = self->pipeline_cache.count - i - 1;
+			self->pipeline_cache[index] = self->pipeline_cache[index - 1];
+		}
+		_renoir_dx11_pipeline_free(self, to_be_evicted);
+		mn::log_warning("dx11: pipeline evicted");
+		pipeline_ix = 0;
+	}
+
+	// create the new pipeline and put it at the head of the cache
+	auto pipeline = _renoir_dx11_pipeline_new(self, desc);
+	self->pipeline_cache[pipeline_ix] = pipeline;
+	return pipeline;
+}
+
+inline static Renoir_Handle*
+_renoir_dx11_sampler_get(IRenoir* self, Renoir_Sampler_Desc desc)
+{
+	size_t best_ix = self->sampler_cache.count;
+	size_t first_empty_ix = self->sampler_cache.count;
+	for (size_t i = 0; i < self->sampler_cache.count; ++i)
+	{
+		auto hsampler = self->sampler_cache[i];
+		if (hsampler == nullptr)
+		{
+			if (first_empty_ix == self->sampler_cache.count)
+				first_empty_ix = i;
+			continue;
+		}
+
+		if (desc == hsampler->sampler.desc)
+		{
+			best_ix = i;
+			break;
+		}
+	}
+
+	// we found what we were looking for
+	if (best_ix < self->sampler_cache.count)
+	{
+		auto res = self->sampler_cache[best_ix];
+		// reorder the cache
+		for (size_t i = 0; i < best_ix; ++i)
+		{
+			auto index = best_ix - i - 1;
+			self->sampler_cache[index + 1] = self->sampler_cache[index];
+		}
+		self->sampler_cache[0] = res;
+		return res;
+	}
+
+	// we didn't find a matching sampler, so create new one
+	size_t sampler_ix = first_empty_ix;
+
+	// we didn't find an empty slot for the new sampler so we'll have to make one for it
+	if (sampler_ix == self->sampler_cache.count)
+	{
+		auto to_be_evicted = mn::buf_top(self->sampler_cache);
+		for (size_t i = 0; i + 1 < self->sampler_cache.count; ++i)
+		{
+			auto index = self->sampler_cache.count - i - 1;
+			self->sampler_cache[index] = self->sampler_cache[index - 1];
+		}
+		_renoir_dx11_sampler_free(self, to_be_evicted);
+		mn::log_warning("dx11: sampler evicted");
+		sampler_ix = 0;
+	}
+
+	// create the new sampler and put it at the head of the cache
+	auto sampler = _renoir_dx11_sampler_new(self, desc);
+	self->sampler_cache[sampler_ix] = sampler;
+	return sampler;
+}
+
 
 static void
 _renoir_dx11_command_execute(IRenoir* self, Renoir_Command* command)
@@ -1222,6 +1549,39 @@ _renoir_dx11_command_execute(IRenoir* self, Renoir_Command* command)
 			self->gpu_memory_in_bytes = dxgi_adapter_desc.DedicatedVideoMemory;
 			mn::log_info("D3D11 Renderer: {}", self->info_description);
 			mn::log_info("D3D11 Video Memory: {}Mb", dxgi_adapter_desc.DedicatedVideoMemory / 1024 / 1024);
+		}
+
+		self->default_pipeline = _renoir_dx11_pipeline_new(self, Renoir_Pipeline_Desc{});
+		// init depth resolve compute shader
+		{
+			ID3D10Blob* error = nullptr;
+			ID3D10Blob* compute_shader_blob = nullptr;
+			auto res = D3DCompile(
+				DEPTH_RESOLVE_COMPUTE,
+				::strlen(DEPTH_RESOLVE_COMPUTE),
+				NULL,
+				NULL,
+				NULL,
+				"main",
+				"cs_5_0",
+				0,
+				0,
+				&compute_shader_blob,
+				&error
+			);
+			if (FAILED(res))
+			{
+				mn::log_error("compute shader compile error\n{}", (char *)error->GetBufferPointer());
+				break;
+			}
+			res = self->device->CreateComputeShader(
+				compute_shader_blob->GetBufferPointer(),
+				compute_shader_blob->GetBufferSize(),
+				NULL,
+				&self->depth_resolve_compute
+			);
+			assert(SUCCEEDED(res));
+			compute_shader_blob->Release();
 		}
 		break;
 	}
@@ -1528,7 +1888,7 @@ _renoir_dx11_command_execute(IRenoir* self, Renoir_Command* command)
 			assert(SUCCEEDED(res));
 		}
 
-		if (desc.usage == RENOIR_USAGE_DYNAMIC && desc.access != RENOIR_ACCESS_NONE)
+		if (desc.access != RENOIR_ACCESS_NONE)
 		{
 			auto buffer_staging_desc = buffer_desc;
 			buffer_staging_desc.BindFlags = 0;
@@ -1566,11 +1926,11 @@ _renoir_dx11_command_execute(IRenoir* self, Renoir_Command* command)
 			D3D11_TEXTURE1D_DESC texture_desc{};
 			texture_desc.ArraySize = 1;
 			texture_desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS;
-			texture_desc.MipLevels = h->texture.desc.mipmaps;
+			texture_desc.MipLevels = desc.mipmaps;
 			texture_desc.Width = desc.size.width;
 			texture_desc.Usage = D3D11_USAGE_DEFAULT;
 			texture_desc.Format = dx_pixelformat;
-			if (h->texture.desc.mipmaps > 1)
+			if (desc.mipmaps > 1)
 				texture_desc.MiscFlags = D3D11_RESOURCE_MISC_GENERATE_MIPS;
 
 			if (desc.data[0])
@@ -1594,7 +1954,7 @@ _renoir_dx11_command_execute(IRenoir* self, Renoir_Command* command)
 			auto res = self->device->CreateShaderResourceView(h->texture.texture1d, &view_desc, &h->texture.shader_view);
 			assert(SUCCEEDED(res));
 
-			if (desc.usage == RENOIR_USAGE_DYNAMIC && desc.access != RENOIR_ACCESS_NONE)
+			if (desc.access != RENOIR_ACCESS_NONE)
 			{
 				auto texture_staging_desc = texture_desc;
 				texture_staging_desc.BindFlags = 0;
@@ -1604,7 +1964,7 @@ _renoir_dx11_command_execute(IRenoir* self, Renoir_Command* command)
 				assert(SUCCEEDED(res));
 			}
 
-			mn::buf_resize(h->texture.uavs, h->texture.desc.mipmaps);
+			mn::buf_resize(h->texture.uavs, desc.mipmaps);
 			for (int i = 0; i < h->texture.uavs.count; ++i)
 			{
 				D3D11_UNORDERED_ACCESS_VIEW_DESC uav_desc{};
@@ -1615,33 +1975,41 @@ _renoir_dx11_command_execute(IRenoir* self, Renoir_Command* command)
 				assert(SUCCEEDED(res));
 			}
 
-			if (h->texture.desc.mipmaps > 1)
+			if (desc.mipmaps > 1)
 				self->context->GenerateMips(h->texture.shader_view);
 		}
 		else if (desc.size.height > 0 && desc.size.depth == 0)
 		{
+			DXGI_FORMAT texture_format = dx_pixelformat;
+
 			D3D11_TEXTURE2D_DESC texture_desc{};
-			texture_desc.ArraySize = h->texture.desc.cube_map ? 6 : 1;
-			if (h->texture.desc.render_target || h->texture.desc.mipmaps > 1)
+			texture_desc.ArraySize = desc.cube_map ? 6 : 1;
+			if (desc.render_target && desc.msaa != RENOIR_MSAA_MODE_NONE)
+			{
+				texture_desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS;
+				// in case of depth texture that supports msaa we'll have to adjust format to be
+				// UAV friendly
+				if (_renoir_pixelformat_is_depth(desc.pixel_format))
+				{
+					texture_format = _renoir_pixelformat_depth_to_dx_uav(desc.pixel_format);
+				}
+			}
+			else
 			{
 				if (_renoir_pixelformat_is_depth(desc.pixel_format) == false)
 					texture_desc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS;
 				else
 					texture_desc.BindFlags = D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE;
 			}
-			else
-			{
-				texture_desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS;
-			}
-			texture_desc.MipLevels = h->texture.desc.mipmaps;
+			texture_desc.MipLevels = desc.mipmaps;
 			texture_desc.Width = desc.size.width;
 			texture_desc.Height = desc.size.height;
 			texture_desc.Usage = D3D11_USAGE_DEFAULT;
-			texture_desc.Format = dx_pixelformat;
+			texture_desc.Format = texture_format;
 			texture_desc.SampleDesc.Count = 1;
-			if (h->texture.desc.mipmaps > 1)
+			if (desc.mipmaps > 1)
 				texture_desc.MiscFlags |= D3D11_RESOURCE_MISC_GENERATE_MIPS;
-			if (h->texture.desc.cube_map)
+			if (desc.cube_map)
 				texture_desc.MiscFlags |= D3D11_RESOURCE_MISC_TEXTURECUBE;
 
 			bool no_data = true;
@@ -1669,37 +2037,44 @@ _renoir_dx11_command_execute(IRenoir* self, Renoir_Command* command)
 				assert(SUCCEEDED(res));
 			}
 
-			D3D11_SHADER_RESOURCE_VIEW_DESC view_desc{};
-			if (_renoir_pixelformat_is_depth(desc.pixel_format) == false)
+			// create SRV
+			if ((texture_desc.BindFlags & D3D11_BIND_SHADER_RESOURCE) != 0)
 			{
-				view_desc.Format = dx_pixelformat;
+				D3D11_SHADER_RESOURCE_VIEW_DESC view_desc{};
+				if (_renoir_pixelformat_is_depth(desc.pixel_format) == false)
+				{
+					view_desc.Format = texture_format;
+				}
+				else
+				{
+					if (desc.render_target && desc.msaa != RENOIR_MSAA_MODE_NONE)
+						view_desc.Format = texture_format;
+					else
+						view_desc.Format = _renoir_pixelformat_depth_to_dx_srv(desc.pixel_format);
+				}
+				if (desc.cube_map == false)
+				{
+					view_desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+					view_desc.Texture2D.MipLevels = texture_desc.MipLevels;
+				}
+				else
+				{
+					view_desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBE;
+					view_desc.TextureCube.MipLevels = texture_desc.MipLevels;
+				}
+				auto res = self->device->CreateShaderResourceView(h->texture.texture2d, &view_desc, &h->texture.shader_view);
+				assert(SUCCEEDED(res));
 			}
-			else
-			{
-				auto dx_shader_view_pixelformat = _renoir_pixelformat_depth_to_dx_shader_view(desc.pixel_format);
-				view_desc.Format = dx_shader_view_pixelformat;
-			}
-			if (h->texture.desc.cube_map == false)
-			{
-				view_desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-				view_desc.Texture2D.MipLevels = texture_desc.MipLevels;
-			}
-			else
-			{
-				view_desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBE;
-				view_desc.TextureCube.MipLevels = texture_desc.MipLevels;
-			}
-			auto res = self->device->CreateShaderResourceView(h->texture.texture2d, &view_desc, &h->texture.shader_view);
-			assert(SUCCEEDED(res));
 
-			if (_renoir_pixelformat_is_depth(desc.pixel_format) == false)
+			// create UAV
+			if ((texture_desc.BindFlags & D3D11_BIND_UNORDERED_ACCESS) != 0)
 			{
-				mn::buf_resize(h->texture.uavs, h->texture.desc.mipmaps);
+				mn::buf_resize(h->texture.uavs, desc.mipmaps);
 				for (int i = 0; i < h->texture.uavs.count; ++i)
 				{
 					D3D11_UNORDERED_ACCESS_VIEW_DESC uav_desc{};
-					uav_desc.Format = dx_pixelformat;
-					if (h->texture.desc.cube_map == false)
+					uav_desc.Format = texture_format;
+					if (desc.cube_map == false)
 					{
 						uav_desc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
 						uav_desc.Texture2D.MipSlice = i;
@@ -1715,51 +2090,65 @@ _renoir_dx11_command_execute(IRenoir* self, Renoir_Command* command)
 				}
 			}
 
+			// create render buffer that supports MSAA
 			if (desc.render_target && desc.msaa != RENOIR_MSAA_MODE_NONE)
 			{
 				auto dx_msaa = _renoir_msaa_to_dx(desc.msaa);
 
 				// create the msaa rendertarget
 				D3D11_TEXTURE2D_DESC texture_desc{};
-				texture_desc.ArraySize = h->texture.desc.cube_map ? 6 : 1;
+				texture_desc.ArraySize = desc.cube_map ? 6 : 1;
 				if (_renoir_pixelformat_is_depth(desc.pixel_format) == false)
-					texture_desc.BindFlags = D3D11_BIND_RENDER_TARGET;
+					texture_desc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
 				else
-					texture_desc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+					texture_desc.BindFlags = D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE;
 				texture_desc.MipLevels = 1;
 				texture_desc.Width = desc.size.width;
 				texture_desc.Height = desc.size.height;
 				texture_desc.Usage = D3D11_USAGE_DEFAULT;
 				texture_desc.Format = dx_pixelformat;
 				texture_desc.SampleDesc.Count = dx_msaa;
-				res = self->device->CreateTexture2D(&texture_desc, nullptr, &h->texture.render_color_buffer);
+				auto res = self->device->CreateTexture2D(&texture_desc, nullptr, &h->texture.render_color_buffer);
 				assert(SUCCEEDED(res));
+
+				// in case of depth we have to create the srv so that we can resolve it later
+				// using a compute shader
+				if (_renoir_pixelformat_is_depth(desc.pixel_format))
+				{
+					auto dx_depth_srv_pixelformat = _renoir_pixelformat_depth_to_dx_srv(desc.pixel_format);
+					D3D11_SHADER_RESOURCE_VIEW_DESC srv_desc{};
+					srv_desc.Format = dx_depth_srv_pixelformat;
+					srv_desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2DMS;
+					auto res = self->device->CreateShaderResourceView(h->texture.render_color_buffer, &srv_desc, &h->texture.render_depth_buffer_srv);
+					assert(SUCCEEDED(res));
+				}
 			}
 
-			if (desc.usage == RENOIR_USAGE_DYNAMIC && desc.access != RENOIR_ACCESS_NONE)
+			// create staging texture
+			if (desc.access != RENOIR_ACCESS_NONE)
 			{
 				auto texture_staging_desc = texture_desc;
 				texture_staging_desc.BindFlags = 0;
 				texture_staging_desc.Usage = D3D11_USAGE_STAGING;
 				texture_staging_desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ | D3D11_CPU_ACCESS_WRITE;
-				res = self->device->CreateTexture2D(&texture_staging_desc, nullptr, &h->texture.texture2d_staging);
+				auto res = self->device->CreateTexture2D(&texture_staging_desc, nullptr, &h->texture.texture2d_staging);
 				assert(SUCCEEDED(res));
 			}
 
-			if (h->texture.desc.mipmaps > 1)
+			if (desc.mipmaps > 1)
 				self->context->GenerateMips(h->texture.shader_view);
 		}
 		else if (desc.size.height > 0 && desc.size.depth > 0)
 		{
 			D3D11_TEXTURE3D_DESC texture_desc{};
 			texture_desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS;
-			texture_desc.MipLevels = h->texture.desc.mipmaps;
+			texture_desc.MipLevels = desc.mipmaps;
 			texture_desc.Width = desc.size.width;
 			texture_desc.Height = desc.size.height;
 			texture_desc.Depth = desc.size.depth;
 			texture_desc.Usage = D3D11_USAGE_DEFAULT;
 			texture_desc.Format = dx_pixelformat;
-			if (h->texture.desc.mipmaps > 1)
+			if (desc.mipmaps > 1)
 				texture_desc.MiscFlags = D3D11_RESOURCE_MISC_GENERATE_MIPS;
 
 			if (desc.data[0])
@@ -1784,19 +2173,19 @@ _renoir_dx11_command_execute(IRenoir* self, Renoir_Command* command)
 			auto res = self->device->CreateShaderResourceView(h->texture.texture3d, &view_desc, &h->texture.shader_view);
 			assert(SUCCEEDED(res));
 
-			mn::buf_resize(h->texture.uavs, h->texture.desc.mipmaps);
+			mn::buf_resize(h->texture.uavs, desc.mipmaps);
 			for (int i = 0; i < h->texture.uavs.count; ++i)
 			{
 				D3D11_UNORDERED_ACCESS_VIEW_DESC uav_desc{};
 				uav_desc.Format = dx_pixelformat;
 				uav_desc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE3D;
-				uav_desc.Texture3D.WSize = h->texture.desc.size.depth;
+				uav_desc.Texture3D.WSize = desc.size.depth;
 				uav_desc.Texture3D.MipSlice = i;
 				res = self->device->CreateUnorderedAccessView(h->texture.texture3d, &uav_desc, &h->texture.uavs[i]);
 				assert(SUCCEEDED(res));
 			}
 
-			if (desc.usage == RENOIR_USAGE_DYNAMIC && desc.access != RENOIR_ACCESS_NONE)
+			if (desc.access != RENOIR_ACCESS_NONE)
 			{
 				auto texture_staging_desc = texture_desc;
 				texture_staging_desc.BindFlags = 0;
@@ -1806,7 +2195,7 @@ _renoir_dx11_command_execute(IRenoir* self, Renoir_Command* command)
 				assert(SUCCEEDED(res));
 			}
 
-			if (h->texture.desc.mipmaps > 1)
+			if (desc.mipmaps > 1)
 				self->context->GenerateMips(h->texture.shader_view);
 		}
 		break;
@@ -2234,6 +2623,12 @@ _renoir_dx11_command_execute(IRenoir* self, Renoir_Command* command)
 		auto h = command->pass_end.handle;
 		if (h->kind == RENOIR_HANDLE_KIND_RASTER_PASS)
 		{
+			// unbind render targets and uavs
+			self->context->OMSetRenderTargetsAndUnorderedAccessViews(0, nullptr, nullptr, 0, 0, nullptr, nullptr);
+			self->current_pipeline = nullptr;
+			self->current_program = nullptr;
+			self->current_pass = nullptr;
+
 			// if this is an off screen view with msaa we'll need to issue a read command to move the data
 			// from renderbuffer to the texture
 			for (size_t i = 0; i < RENOIR_CONSTANT_COLOR_ATTACHMENT_SIZE; ++i)
@@ -2295,14 +2690,35 @@ _renoir_dx11_command_execute(IRenoir* self, Renoir_Command* command)
 			{
 				if (depth->texture.desc.msaa != RENOIR_MSAA_MODE_NONE)
 				{
-					auto dx_pixel_format = _renoir_pixelformat_to_dx(depth->texture.desc.pixel_format);
-					self->context->ResolveSubresource(
-						depth->texture.texture2d,
-						h->raster_pass.offscreen.depth_stencil.subresource,
-						depth->texture.render_color_buffer,
-						h->raster_pass.offscreen.depth_stencil.subresource,
-						dx_pixel_format
+					assert(depth->texture.uavs.count > 0);
+					assert(depth->texture.render_depth_buffer_srv != nullptr);
+
+					ID3D11ShaderResourceView* srv[D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT] = {nullptr};
+					::memset(srv, 0, sizeof(srv));
+
+					self->context->VSSetShaderResources(0, sizeof(srv) / sizeof(*srv), srv);
+					self->context->PSSetShaderResources(0, sizeof(srv) / sizeof(*srv), srv);
+					self->context->GSSetShaderResources(0, sizeof(srv) / sizeof(*srv), srv);
+					self->context->CSSetShaderResources(0, sizeof(srv) / sizeof(*srv), srv);
+
+					self->context->VSSetShader(nullptr, nullptr, 0);
+					self->context->PSSetShader(nullptr, nullptr, 0);
+					self->context->GSSetShader(nullptr, nullptr, 0);
+					self->context->CSSetShader(self->depth_resolve_compute, nullptr, 0);
+
+					self->context->CSSetShaderResources(0, 1, &depth->texture.render_depth_buffer_srv);
+					self->context->CSSetUnorderedAccessViews(0, 1, &depth->texture.uavs[0], nullptr);
+					self->context->Dispatch(
+						(UINT)::ceilf(depth->texture.desc.size.width / 16.0f),
+						(UINT)::ceilf(depth->texture.desc.size.height / 16.0f),
+						1
 					);
+					// clear compute shader uav
+					ID3D11UnorderedAccessView* uav[1] = { nullptr };
+					self->context->CSSetUnorderedAccessViews(0, 1, uav, nullptr);
+
+					// clear compute shader srv
+					self->context->CSSetShaderResources(0, sizeof(srv) / sizeof(*srv), srv);
 				}
 				// schedule copy on staging cpu read access
 				if (depth->texture.desc.access == RENOIR_ACCESS_READ || depth->texture.desc.access == RENOIR_ACCESS_READ_WRITE)
@@ -2338,8 +2754,6 @@ _renoir_dx11_command_execute(IRenoir* self, Renoir_Command* command)
 				}
 			}
 
-			// Unbind render targets and uavs
-			self->context->OMSetRenderTargetsAndUnorderedAccessViews(0, nullptr, nullptr, 0, 0, nullptr, nullptr);
 		}
 		else if (h->kind == RENOIR_HANDLE_KIND_COMPUTE_PASS)
 		{
@@ -2379,6 +2793,8 @@ _renoir_dx11_command_execute(IRenoir* self, Renoir_Command* command)
 				ID3D11UnorderedAccessView* uav[1] = { nullptr };
 				self->context->CSSetUnorderedAccessViews(slot, 1, uav, nullptr);
 			}
+			self->current_program = nullptr;
+			self->current_pass = nullptr;
 		}
 		else
 		{
@@ -2391,6 +2807,13 @@ _renoir_dx11_command_execute(IRenoir* self, Renoir_Command* command)
 		auto& desc = command->pass_clear.desc;
 
 		assert(self->current_pass->kind == RENOIR_HANDLE_KIND_RASTER_PASS);
+
+		// TODO(Moustapha): pipeline should be set when we PASS_BEGIN but for now if you don't set
+		// current pipeline, you get the default one :shrug:
+		if (self->current_pipeline == nullptr)
+		{
+			_renoir_dx11_pipeline_use(self, self->default_pipeline);
+		}
 
 		if (desc.flags & RENOIR_CLEAR_COLOR)
 		{
@@ -2430,11 +2853,7 @@ _renoir_dx11_command_execute(IRenoir* self, Renoir_Command* command)
 	case RENOIR_COMMAND_KIND_USE_PIPELINE:
 	{
 		self->current_pipeline = command->use_pipeline.pipeline;
-
-		auto h = self->current_pipeline;
-		self->context->OMSetBlendState(h->pipeline.blend_state, nullptr, 0xFFFFFFFF);
-		self->context->OMSetDepthStencilState(h->pipeline.depth_state, 1);
-		self->context->RSSetState(h->pipeline.raster_state);
+		_renoir_dx11_pipeline_use(self, self->current_pipeline);
 		break;
 	}
 	case RENOIR_COMMAND_KIND_USE_PROGRAM:
@@ -2959,286 +3378,6 @@ _renoir_dx11_command_execute(IRenoir* self, Renoir_Command* command)
 	}
 }
 
-inline static Renoir_Handle*
-_renoir_dx11_sampler_new(IRenoir* self, Renoir_Sampler_Desc desc)
-{
-	auto h = _renoir_dx11_handle_new(self, RENOIR_HANDLE_KIND_SAMPLER);
-	h->sampler.desc = desc;
-
-	auto command = _renoir_dx11_command_new(self, RENOIR_COMMAND_KIND_SAMPLER_NEW);
-	command->sampler_new.handle = h;
-	command->sampler_new.desc = desc;
-	_renoir_dx11_command_process(self, command);
-	return h;
-}
-
-inline static void
-_renoir_dx11_sampler_free(IRenoir* self, Renoir_Handle* h)
-{
-	auto command = _renoir_dx11_command_new(self, RENOIR_COMMAND_KIND_SAMPLER_FREE);
-	command->sampler_free.handle = h;
-	_renoir_dx11_command_process(self, command);
-}
-
-inline static bool
-operator==(const Renoir_Sampler_Desc& a, const Renoir_Sampler_Desc& b)
-{
-	return (
-		a.filter == b.filter &&
-		a.u == b.u &&
-		a.v == b.v &&
-		a.w == b.w &&
-		a.compare == b.compare &&
-		a.border.r == b.border.r &&
-		a.border.g == b.border.g &&
-		a.border.b == b.border.b &&
-		a.border.a == b.border.a
-	);
-}
-
-static Renoir_Handle*
-_renoir_dx11_pipeline_new(IRenoir* self, Renoir_Pipeline_Desc desc)
-{
-	_renoir_dx11_pipeline_desc_defaults(&desc);
-
-	mn::mutex_lock(self->mtx);
-	mn_defer(mn::mutex_unlock(self->mtx));
-
-	auto h = _renoir_dx11_handle_new(self, RENOIR_HANDLE_KIND_PIPELINE);
-	h->pipeline.desc = desc;
-
-	auto command = _renoir_dx11_command_new(self, RENOIR_COMMAND_KIND_PIPELINE_NEW);
-	command->pipeline_new.handle = h;
-	_renoir_dx11_command_process(self, command);
-	return h;
-}
-
-static void
-_renoir_dx11_pipeline_free(IRenoir* self, Renoir_Handle* pipeline)
-{
-	assert(pipeline != nullptr);
-
-	mn::mutex_lock(self->mtx);
-	mn_defer(mn::mutex_unlock(self->mtx));
-	auto command = _renoir_dx11_command_new(self, RENOIR_COMMAND_KIND_PIPELINE_FREE);
-	command->pipeline_free.handle = pipeline;
-	_renoir_dx11_command_process(self, command);
-}
-
-inline static bool
-operator==(const Renoir_Rasterizer_Desc& a, const Renoir_Rasterizer_Desc& b)
-{
-	if (a.cull != b.cull)
-		return false;
-	if (a.cull == RENOIR_SWITCH_ENABLE)
-	{
-		if (a.cull_face != b.cull_face)
-			return false;
-		if (a.cull_front != b.cull_front)
-			return false;
-	}
-	if (a.scissor != b.scissor)
-		return false;
-	return true;
-}
-
-inline static bool
-operator!=(const Renoir_Rasterizer_Desc& a, const Renoir_Rasterizer_Desc& b)
-{
-	return !(a == b);
-}
-
-inline static bool
-operator==(const Renoir_Depth_Desc& a, const Renoir_Depth_Desc& b)
-{
-	if (a.depth != b.depth)
-		return false;
-	if (a.depth == RENOIR_SWITCH_ENABLE)
-	{
-		if (a.depth_write_mask != b.depth_write_mask)
-			return false;
-	}
-	return true;
-}
-
-inline static bool
-operator!=(const Renoir_Depth_Desc& a, const Renoir_Depth_Desc& b)
-{
-	return !(a == b);
-}
-
-inline static bool
-operator==(const Renoir_Blend_Desc& a, const Renoir_Blend_Desc& b)
-{
-	if (a.enabled != b.enabled)
-		return false;
-	if (a.enabled == RENOIR_SWITCH_ENABLE)
-	{
-		if (a.src_rgb != b.src_rgb)
-			return false;
-		if (a.dst_rgb != b.dst_rgb)
-			return false;
-		if (a.src_alpha != b.src_alpha)
-			return false;
-		if (a.dst_alpha != b.dst_alpha)
-			return false;
-		if (a.eq_rgb != b.eq_rgb)
-			return false;
-		if (a.eq_alpha != b.eq_alpha)
-			return false;
-	}
-	if (a.color_mask != b.color_mask)
-		return false;
-	return true;
-}
-
-inline static bool
-operator!=(const Renoir_Blend_Desc& a, const Renoir_Blend_Desc& b)
-{
-	return !(a == b);
-}
-
-inline static bool
-operator==(const Renoir_Pipeline_Desc& a, const Renoir_Pipeline_Desc& b)
-{
-	if (a.rasterizer != b.rasterizer)
-		return false;
-	if (a.depth_stencil != b.depth_stencil)
-		return false;
-	if (a.independent_blend != b.independent_blend)
-		return false;
-	if (a.independent_blend == RENOIR_SWITCH_ENABLE)
-	{
-		for (size_t i = 0; i < RENOIR_CONSTANT_COLOR_ATTACHMENT_SIZE; ++i)
-			if (a.blend[i] != b.blend[i])
-				return false;
-	}
-	else
-	{
-		if (a.blend[0] != b.blend[0])
-			return false;
-	}
-	return true;
-}
-
-inline static Renoir_Handle*
-_renoir_dx11_pipeline_get(IRenoir* self, Renoir_Pipeline_Desc desc)
-{
-	size_t best_ix = self->pipeline_cache.count;
-	size_t first_empty_ix = self->pipeline_cache.count;
-	for (size_t i = 0; i < self->pipeline_cache.count; ++i)
-	{
-		auto hpipeline = self->pipeline_cache[i];
-		if (hpipeline == nullptr)
-		{
-			if (first_empty_ix == self->pipeline_cache.count)
-				first_empty_ix = i;
-			continue;
-		}
-
-		if (desc == hpipeline->pipeline.desc)
-		{
-			best_ix = i;
-			break;
-		}
-	}
-
-	// we found what we were looking for
-	if (best_ix < self->pipeline_cache.count)
-	{
-		auto res = self->pipeline_cache[best_ix];
-		// reorder the cache
-		for (size_t i = 0; i < best_ix; ++i)
-		{
-			auto index = best_ix - i - 1;
-			self->pipeline_cache[index + 1] = self->pipeline_cache[index];
-		}
-		self->pipeline_cache[0] = res;
-		return res;
-	}
-
-	// we didn't find a matching pipeline, so create new one
-	size_t pipeline_ix = first_empty_ix;
-
-	// we didn't find an empty slot for the new pipeline so we'll have to make one for it
-	if (pipeline_ix == self->pipeline_cache.count)
-	{
-		auto to_be_evicted = mn::buf_top(self->pipeline_cache);
-		for (size_t i = 0; i + 1 < self->pipeline_cache.count; ++i)
-		{
-			auto index = self->pipeline_cache.count - i - 1;
-			self->pipeline_cache[index] = self->pipeline_cache[index - 1];
-		}
-		_renoir_dx11_pipeline_free(self, to_be_evicted);
-		mn::log_warning("dx11: pipeline evicted");
-		pipeline_ix = 0;
-	}
-
-	// create the new pipeline and put it at the head of the cache
-	auto pipeline = _renoir_dx11_pipeline_new(self, desc);
-	self->pipeline_cache[pipeline_ix] = pipeline;
-	return pipeline;
-}
-
-inline static Renoir_Handle*
-_renoir_dx11_sampler_get(IRenoir* self, Renoir_Sampler_Desc desc)
-{
-	size_t best_ix = self->sampler_cache.count;
-	size_t first_empty_ix = self->sampler_cache.count;
-	for (size_t i = 0; i < self->sampler_cache.count; ++i)
-	{
-		auto hsampler = self->sampler_cache[i];
-		if (hsampler == nullptr)
-		{
-			if (first_empty_ix == self->sampler_cache.count)
-				first_empty_ix = i;
-			continue;
-		}
-
-		if (desc == hsampler->sampler.desc)
-		{
-			best_ix = i;
-			break;
-		}
-	}
-
-	// we found what we were looking for
-	if (best_ix < self->sampler_cache.count)
-	{
-		auto res = self->sampler_cache[best_ix];
-		// reorder the cache
-		for (size_t i = 0; i < best_ix; ++i)
-		{
-			auto index = best_ix - i - 1;
-			self->sampler_cache[index + 1] = self->sampler_cache[index];
-		}
-		self->sampler_cache[0] = res;
-		return res;
-	}
-
-	// we didn't find a matching sampler, so create new one
-	size_t sampler_ix = first_empty_ix;
-
-	// we didn't find an empty slot for the new sampler so we'll have to make one for it
-	if (sampler_ix == self->sampler_cache.count)
-	{
-		auto to_be_evicted = mn::buf_top(self->sampler_cache);
-		for (size_t i = 0; i + 1 < self->sampler_cache.count; ++i)
-		{
-			auto index = self->sampler_cache.count - i - 1;
-			self->sampler_cache[index] = self->sampler_cache[index - 1];
-		}
-		_renoir_dx11_sampler_free(self, to_be_evicted);
-		mn::log_warning("dx11: sampler evicted");
-		sampler_ix = 0;
-	}
-
-	// create the new sampler and put it at the head of the cache
-	auto sampler = _renoir_dx11_sampler_new(self, desc);
-	self->sampler_cache[sampler_ix] = sampler;
-	return sampler;
-}
-
 inline static void
 _renoir_dx11_handle_leak_free(IRenoir* self, Renoir_Command* command)
 {
@@ -3434,6 +3573,13 @@ static void
 _renoir_dx11_dispose(Renoir* api)
 {
 	auto self = api->ctx;
+
+	// free the default pipeline
+	_renoir_dx11_pipeline_free(self, self->default_pipeline);
+	// free the depth resolve compute shader
+	if (self->depth_resolve_compute) self->depth_resolve_compute->Release();
+	self->depth_resolve_compute = nullptr;
+
 	// process these commands for frees to give correct leak report
 	for (auto it = self->command_list_head; it != nullptr; it = it->next)
 		_renoir_dx11_handle_leak_free(self, it);
@@ -3682,6 +3828,11 @@ _renoir_dx11_texture_new(Renoir* api, Renoir_Texture_Desc desc)
 	if (desc.usage == RENOIR_USAGE_DYNAMIC && desc.access == RENOIR_ACCESS_NONE)
 	{
 		assert(false && "a dynamic texture with cpu access set to none is a static texture");
+	}
+
+	if (desc.usage == RENOIR_USAGE_STATIC && (desc.access == RENOIR_ACCESS_WRITE || desc.access == RENOIR_ACCESS_READ_WRITE))
+	{
+		assert(false && "a static texture cannot have write access");
 	}
 
 	if (desc.render_target == false && desc.usage == RENOIR_USAGE_STATIC && desc.data == nullptr)
