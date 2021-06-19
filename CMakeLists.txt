@@ -1,4 +1,9 @@
-cmake_minimum_required(VERSION 3.9)
+cmake_minimum_required(VERSION 3.16)
+
+set(MASTER_PROJECT OFF)
+if (CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
+	set(MASTER_PROJECT ON)
+endif ()
 
 project(renoir LANGUAGES CXX C)
 
@@ -12,15 +17,21 @@ set(CMAKE_INSTALL_RPATH "$ORIGIN")
 set(CMAKE_BUILD_RPATH "$ORIGIN")
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
-option(RENOIR_BUILD_EXAMPLES "Build example applications that showcase the renoir libraries." ON)
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
+
+option(RENOIR_BUILD_EXAMPLES "Build example applications that showcase the renoir libraries." ${MASTER_PROJECT})
 option(RENOIR_UNITY_BUILD "Combine all renoir source files into one jumbo build." ON)
-option(RENOIR_USE_LOCAL_MN "Uses the local mn submodule in renoir" ON)
 option(RENOIR_DEBUG_LAYER "Turn on debug layer in underlying graphics api" OFF)
 option(RENOIR_LEAK "Turn on leak detector for graphics resources" OFF)
 
-if (RENOIR_USE_LOCAL_MN)
-	add_subdirectory(external/mn EXCLUDE_FROM_ALL)
-endif()
+# external dependencies
+include(CPM)
+CPMAddPackage(
+	NAME             mn
+	GIT_REPOSITORY   https://github.com/MoustaphaSaad/mn.git
+	GIT_TAG          2caf13002d03494e052948a12da4bdb52f3608a1
+	GIT_SHALLOW      TRUE
+)
 add_subdirectory(external/glew EXCLUDE_FROM_ALL)
 
 add_subdirectory(renoir-window)
