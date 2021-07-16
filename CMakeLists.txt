@@ -30,7 +30,6 @@ CPMAddPackage(
 	NAME             mn
 	GIT_REPOSITORY   https://github.com/MoustaphaSaad/mn.git
 	GIT_TAG          2caf13002d03494e052948a12da4bdb52f3608a1
-	GIT_SHALLOW      TRUE
 )
 add_subdirectory(external/glew EXCLUDE_FROM_ALL)
 

@@ -103,8 +103,6 @@ int main()
 			gfx->swapchain_resize(gfx, swapchain, event.resize.width, event.resize.height);
 		}
 
-		gfx->pass_begin(gfx, pass);
-
 		Renoir_Clear_Desc clear{};
 		clear.flags = RENOIR_CLEAR(RENOIR_CLEAR_COLOR|RENOIR_CLEAR_DEPTH);
 		clear.color[0] = {0.0f, 0.0f, 0.0f, 1.0f};
@@ -132,7 +130,7 @@ int main()
 		draw.index_type = RENOIR_TYPE_UINT16;
 		gfx->draw(gfx, pass, draw);
 
-		gfx->pass_end(gfx, pass);
+		gfx->pass_submit(gfx, pass);
 		gfx->swapchain_present(gfx, swapchain);
 	}
 

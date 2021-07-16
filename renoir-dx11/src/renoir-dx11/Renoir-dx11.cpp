@@ -1047,7 +1047,7 @@ _renoir_dx11_command_free(T* self, Renoir_Command* command)
 
 template<typename T>
 static void
-_renoir_dx11_command_push(T* self, Renoir_Command* command)
+_renoir_dx11_command_push_back(T* self, Renoir_Command* command)
 {
 	if(self->command_list_tail == nullptr)
 	{
@@ -1061,12 +1061,28 @@ _renoir_dx11_command_push(T* self, Renoir_Command* command)
 	self->command_list_tail = command;
 }
 
+template<typename T>
+static void
+_renoir_dx11_command_push_front(T* self, Renoir_Command* command)
+{
+	if(self->command_list_head == nullptr)
+	{
+		self->command_list_head = command;
+		self->command_list_tail = command;
+		return;
+	}
+
+	self->command_list_head->prev = command;
+	command->next = self->command_list_head;
+	self->command_list_head = command;
+}
+
 static void
 _renoir_dx11_command_process(IRenoir* self, Renoir_Command* command)
 {
 	if (self->settings.defer_api_calls)
 	{
-		_renoir_dx11_command_push(self, command);
+		_renoir_dx11_command_push_back(self, command);
 	}
 	else
 	{
@@ -4215,43 +4231,7 @@ _renoir_dx11_timer_elapsed(struct Renoir* api, Renoir_Timer timer, uint64_t* ela
 
 // Graphics Commands
 static void
-_renoir_dx11_pass_begin(Renoir* api, Renoir_Pass pass)
-{
-	auto self = api->ctx;
-	auto h = (Renoir_Handle*)pass.handle;
-	assert(h != nullptr);
-	if (h->kind == RENOIR_HANDLE_KIND_RASTER_PASS)
-	{
-		h->raster_pass.command_list_head = nullptr;
-		h->raster_pass.command_list_tail = nullptr;
-
-		mn::mutex_lock(self->mtx);
-		mn_defer(mn::mutex_unlock(self->mtx));
-
-		auto command = _renoir_dx11_command_new(self, RENOIR_COMMAND_KIND_PASS_BEGIN);
-		command->pass_begin.handle = h;
-		_renoir_dx11_command_push(&h->raster_pass, command);
-	}
-	else if (h->kind == RENOIR_HANDLE_KIND_COMPUTE_PASS)
-	{
-		h->compute_pass.command_list_head = nullptr;
-		h->compute_pass.command_list_tail = nullptr;
-
-		mn::mutex_lock(self->mtx);
-		mn_defer(mn::mutex_unlock(self->mtx));
-
-		auto command = _renoir_dx11_command_new(self, RENOIR_COMMAND_KIND_PASS_BEGIN);
-		command->pass_begin.handle = h;
-		_renoir_dx11_command_push(&h->compute_pass, command);
-	}
-	else
-	{
-		assert(false && "invalid pass");
-	}
-}
-
-static void
-_renoir_dx11_pass_end(Renoir* api, Renoir_Pass pass)
+_renoir_dx11_pass_submit(Renoir* api, Renoir_Pass pass)
 {
 	auto self = api->ctx;
 	auto h = (Renoir_Handle*)pass.handle;
@@ -4263,10 +4243,19 @@ _renoir_dx11_pass_end(Renoir* api, Renoir_Pass pass)
 		{
 			mn::mutex_lock(self->mtx);
 
+			// push the pass begin command
+			{
+				auto command = _renoir_dx11_command_new(self, RENOIR_COMMAND_KIND_PASS_BEGIN);
+				command->pass_begin.handle = h;
+				_renoir_dx11_command_push_front(&h->raster_pass, command);
+			}
+
 			// push the pass end command
-			auto command = _renoir_dx11_command_new(self, RENOIR_COMMAND_KIND_PASS_END);
-			command->pass_end.handle = h;
-			_renoir_dx11_command_push(&h->raster_pass, command);
+			{
+				auto command = _renoir_dx11_command_new(self, RENOIR_COMMAND_KIND_PASS_END);
+				command->pass_end.handle = h;
+				_renoir_dx11_command_push_back(&h->raster_pass, command);
+			}
 
 			// push the commands to the end of command list, if the user requested to defer api calls
 			if (self->settings.defer_api_calls)
@@ -4291,6 +4280,11 @@ _renoir_dx11_pass_end(Renoir* api, Renoir_Pass pass)
 					_renoir_dx11_command_free(self, it);
 				}
 			}
+
+			// clear
+			h->raster_pass.command_list_head = nullptr;
+			h->raster_pass.command_list_tail = nullptr;
+
 			mn::mutex_unlock(self->mtx);
 		}
 		h->raster_pass.command_list_head = nullptr;
@@ -4302,10 +4296,19 @@ _renoir_dx11_pass_end(Renoir* api, Renoir_Pass pass)
 		{
 			mn::mutex_lock(self->mtx);
 
+			// push the pass begin command
+			{
+				auto command = _renoir_dx11_command_new(self, RENOIR_COMMAND_KIND_PASS_BEGIN);
+				command->pass_begin.handle = h;
+				_renoir_dx11_command_push_front(&h->compute_pass, command);
+			}
+
 			// push the pass end command
-			auto command = _renoir_dx11_command_new(self, RENOIR_COMMAND_KIND_PASS_END);
-			command->pass_end.handle = h;
-			_renoir_dx11_command_push(&h->compute_pass, command);
+			{
+				auto command = _renoir_dx11_command_new(self, RENOIR_COMMAND_KIND_PASS_END);
+				command->pass_end.handle = h;
+				_renoir_dx11_command_push_back(&h->compute_pass, command);
+			}
 
 			// push the commands to the end of command list, if the user requested to defer api calls
 			if (self->settings.defer_api_calls)
@@ -4330,6 +4333,7 @@ _renoir_dx11_pass_end(Renoir* api, Renoir_Pass pass)
 					_renoir_dx11_command_free(self, it);
 				}
 			}
+
 			mn::mutex_unlock(self->mtx);
 		}
 		h->compute_pass.command_list_head = nullptr;
@@ -4358,7 +4362,7 @@ _renoir_dx11_clear(Renoir* api, Renoir_Pass pass, Renoir_Clear_Desc desc)
 	mn::mutex_unlock(self->mtx);
 
 	command->pass_clear.desc = desc;
-	_renoir_dx11_command_push(&h->raster_pass, command);
+	_renoir_dx11_command_push_back(&h->raster_pass, command);
 }
 
 static void
@@ -4377,7 +4381,7 @@ _renoir_dx11_use_pipeline(Renoir* api, Renoir_Pass pass, Renoir_Pipeline_Desc pi
 	mn::mutex_unlock(self->mtx);
 
 	command->use_pipeline.pipeline = pipeline;
-	_renoir_dx11_command_push(&h->raster_pass, command);
+	_renoir_dx11_command_push_back(&h->raster_pass, command);
 }
 
 static void
@@ -4394,7 +4398,7 @@ _renoir_dx11_use_program(Renoir* api, Renoir_Pass pass, Renoir_Program program)
 	mn::mutex_unlock(self->mtx);
 
 	command->use_program.program = (Renoir_Handle*)program.handle;
-	_renoir_dx11_command_push(&h->raster_pass, command);
+	_renoir_dx11_command_push_back(&h->raster_pass, command);
 }
 
 static void
@@ -4411,7 +4415,7 @@ _renoir_dx11_use_compute(Renoir* api, Renoir_Pass pass, Renoir_Compute compute)
 	mn::mutex_unlock(self->mtx);
 
 	command->use_compute.compute = (Renoir_Handle*)compute.handle;
-	_renoir_dx11_command_push(&h->compute_pass, command);
+	_renoir_dx11_command_push_back(&h->compute_pass, command);
 }
 
 static void
@@ -4431,116 +4435,7 @@ _renoir_dx11_scissor(Renoir* api, Renoir_Pass pass, int x, int y, int width, int
 	command->scissor.y = y;
 	command->scissor.w = width;
 	command->scissor.h = height;
-	_renoir_dx11_command_push(&h->raster_pass, command);
-}
-
-static void
-_renoir_dx11_buffer_zero(Renoir* api, Renoir_Pass pass, Renoir_Buffer buffer)
-{
-	auto self = api->ctx;
-	auto h = (Renoir_Handle*)pass.handle;
-	assert(h != nullptr);
-	auto hbuffer = (Renoir_Handle*)buffer.handle;
-	assert(hbuffer != nullptr);
-
-	assert(hbuffer->buffer.usage != RENOIR_USAGE_STATIC);
-	assert(hbuffer->buffer.uav);
-
-	mn::mutex_lock(self->mtx);
-	auto command = _renoir_dx11_command_new(self, RENOIR_COMMAND_KIND_BUFFER_CLEAR);
-	mn::mutex_unlock(self->mtx);
-
-	command->buffer_clear.handle = hbuffer;
-
-	if (h->kind == RENOIR_HANDLE_KIND_RASTER_PASS)
-	{
-		_renoir_dx11_command_push(&h->raster_pass, command);
-	}
-	else if (h->kind == RENOIR_HANDLE_KIND_COMPUTE_PASS)
-	{
-		_renoir_dx11_command_push(&h->compute_pass, command);
-	}
-	else
-	{
-		assert(false && "invalid pass");
-	}
-}
-
-static void
-_renoir_dx11_buffer_write(Renoir* api, Renoir_Pass pass, Renoir_Buffer buffer, size_t offset, void* bytes, size_t bytes_size)
-{
-	// this means he's trying to write nothing so no-op
-	if (bytes_size == 0)
-		return;
-
-	auto self = api->ctx;
-	auto h = (Renoir_Handle*)pass.handle;
-	assert(h != nullptr);
-	auto hbuffer = (Renoir_Handle*)buffer.handle;
-	assert(hbuffer != nullptr);
-
-	assert(hbuffer->buffer.usage != RENOIR_USAGE_STATIC);
-
-	mn::mutex_lock(self->mtx);
-	auto command = _renoir_dx11_command_new(self, RENOIR_COMMAND_KIND_BUFFER_WRITE);
-	mn::mutex_unlock(self->mtx);
-
-	command->buffer_write.handle = hbuffer;
-	command->buffer_write.offset = offset;
-	command->buffer_write.bytes = mn::alloc(bytes_size, alignof(char)).ptr;
-	command->buffer_write.bytes_size = bytes_size;
-	::memcpy(command->buffer_write.bytes, bytes, bytes_size);
-
-	if (h->kind == RENOIR_HANDLE_KIND_RASTER_PASS)
-	{
-		_renoir_dx11_command_push(&h->raster_pass, command);
-	}
-	else if (h->kind == RENOIR_HANDLE_KIND_COMPUTE_PASS)
-	{
-		_renoir_dx11_command_push(&h->compute_pass, command);
-	}
-	else
-	{
-		assert(false && "invalid pass");
-	}
-
-}
-
-static void
-_renoir_dx11_texture_write(Renoir* api, Renoir_Pass pass, Renoir_Texture texture, Renoir_Texture_Edit_Desc desc)
-{
-	// this means he's trying to write nothing so no-op
-	if (desc.bytes_size == 0)
-		return;
-
-	auto self = api->ctx;
-	auto h = (Renoir_Handle*)pass.handle;
-	assert(h != nullptr);
-
-	auto htexture = (Renoir_Handle*)texture.handle;
-	assert(htexture->texture.desc.usage != RENOIR_USAGE_STATIC);
-
-	mn::mutex_lock(self->mtx);
-	auto command = _renoir_dx11_command_new(self, RENOIR_COMMAND_KIND_TEXTURE_WRITE);
-	mn::mutex_unlock(self->mtx);
-
-	command->texture_write.handle = htexture;
-	command->texture_write.desc = desc;
-	command->texture_write.desc.bytes = mn::alloc(desc.bytes_size, alignof(char)).ptr;
-	::memcpy(command->texture_write.desc.bytes, desc.bytes, desc.bytes_size);
-
-	if (h->kind == RENOIR_HANDLE_KIND_RASTER_PASS)
-	{
-		_renoir_dx11_command_push(&h->raster_pass, command);
-	}
-	else if (h->kind == RENOIR_HANDLE_KIND_COMPUTE_PASS)
-	{
-		_renoir_dx11_command_push(&h->compute_pass, command);
-	}
-	else
-	{
-		assert(false && "invalid pass");
-	}
+	_renoir_dx11_command_push_back(&h->raster_pass, command);
 }
 
 static void
@@ -4561,12 +4456,46 @@ _renoir_dx11_buffer_zero_global(Renoir* api, Renoir_Buffer buffer)
 }
 
 static void
+_renoir_dx11_buffer_zero(Renoir* api, Renoir_Pass pass, Renoir_Buffer buffer)
+{
+	auto self = api->ctx;
+	auto h = (Renoir_Handle*)pass.handle;
+	if (h == nullptr)
+	{
+		_renoir_dx11_buffer_zero_global(api, buffer);
+	}
+	else
+	{
+		auto hbuffer = (Renoir_Handle*)buffer.handle;
+		assert(hbuffer != nullptr);
+
+		assert(hbuffer->buffer.usage != RENOIR_USAGE_STATIC);
+		assert(hbuffer->buffer.uav);
+
+		mn::mutex_lock(self->mtx);
+		auto command = _renoir_dx11_command_new(self, RENOIR_COMMAND_KIND_BUFFER_CLEAR);
+		mn::mutex_unlock(self->mtx);
+
+		command->buffer_clear.handle = hbuffer;
+
+		if (h->kind == RENOIR_HANDLE_KIND_RASTER_PASS)
+		{
+			_renoir_dx11_command_push_back(&h->raster_pass, command);
+		}
+		else if (h->kind == RENOIR_HANDLE_KIND_COMPUTE_PASS)
+		{
+			_renoir_dx11_command_push_back(&h->compute_pass, command);
+		}
+		else
+		{
+			assert(false && "invalid pass");
+		}
+	}
+}
+
+static void
 _renoir_dx11_buffer_write_global(Renoir* api, Renoir_Buffer buffer, size_t offset, void* bytes, size_t bytes_size)
 {
-	// this means he's trying to write nothing so no-op
-	if (bytes_size == 0)
-		return;
-
 	auto self = api->ctx;
 	auto hbuffer = (Renoir_Handle*)buffer.handle;
 	assert(hbuffer != nullptr);
@@ -4586,12 +4515,53 @@ _renoir_dx11_buffer_write_global(Renoir* api, Renoir_Buffer buffer, size_t offse
 }
 
 static void
-_renoir_dx11_texture_write_global(Renoir* api, Renoir_Texture texture, Renoir_Texture_Edit_Desc desc)
+_renoir_dx11_buffer_write(Renoir* api, Renoir_Pass pass, Renoir_Buffer buffer, size_t offset, void* bytes, size_t bytes_size)
 {
 	// this means he's trying to write nothing so no-op
-	if (desc.bytes_size == 0)
+	if (bytes_size == 0)
 		return;
 
+	auto self = api->ctx;
+	auto h = (Renoir_Handle*)pass.handle;
+	if (h == nullptr)
+	{
+		_renoir_dx11_buffer_write_global(api, buffer, offset, bytes, bytes_size);
+	}
+	else
+	{
+		auto hbuffer = (Renoir_Handle*)buffer.handle;
+		assert(hbuffer != nullptr);
+
+		assert(hbuffer->buffer.usage != RENOIR_USAGE_STATIC);
+
+		mn::mutex_lock(self->mtx);
+		auto command = _renoir_dx11_command_new(self, RENOIR_COMMAND_KIND_BUFFER_WRITE);
+		mn::mutex_unlock(self->mtx);
+
+		command->buffer_write.handle = hbuffer;
+		command->buffer_write.offset = offset;
+		command->buffer_write.bytes = mn::alloc(bytes_size, alignof(char)).ptr;
+		command->buffer_write.bytes_size = bytes_size;
+		::memcpy(command->buffer_write.bytes, bytes, bytes_size);
+
+		if (h->kind == RENOIR_HANDLE_KIND_RASTER_PASS)
+		{
+			_renoir_dx11_command_push_back(&h->raster_pass, command);
+		}
+		else if (h->kind == RENOIR_HANDLE_KIND_COMPUTE_PASS)
+		{
+			_renoir_dx11_command_push_back(&h->compute_pass, command);
+		}
+		else
+		{
+			assert(false && "invalid pass");
+		}
+	}
+}
+
+static void
+_renoir_dx11_texture_write_global(Renoir* api, Renoir_Texture texture, Renoir_Texture_Edit_Desc desc)
+{
 	auto self = api->ctx;
 
 	auto htexture = (Renoir_Handle*)texture.handle;
@@ -4606,6 +4576,48 @@ _renoir_dx11_texture_write_global(Renoir* api, Renoir_Texture texture, Renoir_Te
 	command->texture_write.desc.bytes = mn::alloc(desc.bytes_size, alignof(char)).ptr;
 	::memcpy(command->texture_write.desc.bytes, desc.bytes, desc.bytes_size);
 	_renoir_dx11_command_process(self, command);
+}
+
+static void
+_renoir_dx11_texture_write(Renoir* api, Renoir_Pass pass, Renoir_Texture texture, Renoir_Texture_Edit_Desc desc)
+{
+	// this means he's trying to write nothing so no-op
+	if (desc.bytes_size == 0)
+		return;
+
+	auto self = api->ctx;
+	auto h = (Renoir_Handle*)pass.handle;
+	if (h == nullptr)
+	{
+		_renoir_dx11_texture_write_global(api, texture, desc);
+	}
+	else
+	{
+		auto htexture = (Renoir_Handle*)texture.handle;
+		assert(htexture->texture.desc.usage != RENOIR_USAGE_STATIC);
+
+		mn::mutex_lock(self->mtx);
+		auto command = _renoir_dx11_command_new(self, RENOIR_COMMAND_KIND_TEXTURE_WRITE);
+		mn::mutex_unlock(self->mtx);
+
+		command->texture_write.handle = htexture;
+		command->texture_write.desc = desc;
+		command->texture_write.desc.bytes = mn::alloc(desc.bytes_size, alignof(char)).ptr;
+		::memcpy(command->texture_write.desc.bytes, desc.bytes, desc.bytes_size);
+
+		if (h->kind == RENOIR_HANDLE_KIND_RASTER_PASS)
+		{
+			_renoir_dx11_command_push_back(&h->raster_pass, command);
+		}
+		else if (h->kind == RENOIR_HANDLE_KIND_COMPUTE_PASS)
+		{
+			_renoir_dx11_command_push_back(&h->compute_pass, command);
+		}
+		else
+		{
+			assert(false && "invalid pass");
+		}
+	}
 }
 
 static void
@@ -4684,7 +4696,7 @@ _renoir_dx11_buffer_bind(Renoir* api, Renoir_Pass pass, Renoir_Buffer buffer, RE
 	command->buffer_bind.slot = slot;
 	command->buffer_bind.gpu_access = RENOIR_ACCESS_NONE;
 
-	_renoir_dx11_command_push(&h->raster_pass, command);
+	_renoir_dx11_command_push_back(&h->raster_pass, command);
 }
 
 static void
@@ -4729,7 +4741,7 @@ _renoir_dx11_buffer_storage_bind(Renoir* api, Renoir_Pass pass, Renoir_Buffer_St
 	}
 	command->buffer_storage_bind.start_slot = desc.start_slot;
 
-	_renoir_dx11_command_push(&h->raster_pass, command);
+	_renoir_dx11_command_push_back(&h->raster_pass, command);
 }
 
 static void
@@ -4752,7 +4764,7 @@ _renoir_dx11_texture_bind(Renoir* api, Renoir_Pass pass, Renoir_Texture texture,
 	command->texture_bind.slot = slot;
 	command->texture_bind.sampler = hsampler;
 
-	_renoir_dx11_command_push(&h->raster_pass, command);
+	_renoir_dx11_command_push_back(&h->raster_pass, command);
 }
 
 static void
@@ -4775,7 +4787,7 @@ _renoir_dx11_texture_sampler_bind(Renoir* api, Renoir_Pass pass, Renoir_Texture 
 	command->texture_bind.slot = slot;
 	command->texture_bind.sampler = hsampler;
 
-	_renoir_dx11_command_push(&h->raster_pass, command);
+	_renoir_dx11_command_push_back(&h->raster_pass, command);
 }
 
 static void
@@ -4800,7 +4812,7 @@ _renoir_dx11_buffer_compute_bind(Renoir* api, Renoir_Pass pass, Renoir_Buffer bu
 	command->buffer_bind.slot = slot;
 	command->buffer_bind.gpu_access = gpu_access;
 
-	_renoir_dx11_command_push(&h->raster_pass, command);
+	_renoir_dx11_command_push_back(&h->raster_pass, command);
 }
 
 static void
@@ -4833,7 +4845,7 @@ _renoir_dx11_texture_compute_bind(Renoir* api, Renoir_Pass pass, Renoir_Texture 
 	command->texture_bind.mip_level = mip_level;
 	command->texture_bind.gpu_access = gpu_access;
 
-	_renoir_dx11_command_push(&h->raster_pass, command);
+	_renoir_dx11_command_push_back(&h->raster_pass, command);
 }
 
 static void
@@ -4851,7 +4863,7 @@ _renoir_dx11_draw(Renoir* api, Renoir_Pass pass, Renoir_Draw_Desc desc)
 
 	command->draw.desc = desc;
 
-	_renoir_dx11_command_push(&h->raster_pass, command);
+	_renoir_dx11_command_push_back(&h->raster_pass, command);
 }
 
 static void
@@ -4873,7 +4885,7 @@ _renoir_dx11_dispatch(Renoir* api, Renoir_Pass pass, int x, int y, int z)
 	command->dispatch.y = y;
 	command->dispatch.z = z;
 
-	_renoir_dx11_command_push(&h->compute_pass, command);
+	_renoir_dx11_command_push_back(&h->compute_pass, command);
 }
 
 static void
@@ -4898,11 +4910,11 @@ _renoir_dx11_timer_begin(struct Renoir* api, Renoir_Pass pass, Renoir_Timer time
 
 	if (h->kind == RENOIR_HANDLE_KIND_RASTER_PASS)
 	{
-		_renoir_dx11_command_push(&h->raster_pass, command);
+		_renoir_dx11_command_push_back(&h->raster_pass, command);
 	}
 	else if (h->kind == RENOIR_HANDLE_KIND_COMPUTE_PASS)
 	{
-		_renoir_dx11_command_push(&h->compute_pass, command);
+		_renoir_dx11_command_push_back(&h->compute_pass, command);
 	}
 	else
 	{
@@ -4931,11 +4943,11 @@ _renoir_dx11_timer_end(struct Renoir* api, Renoir_Pass pass, Renoir_Timer timer)
 
 	if (h->kind == RENOIR_HANDLE_KIND_RASTER_PASS)
 	{
-		_renoir_dx11_command_push(&h->raster_pass, command);
+		_renoir_dx11_command_push_back(&h->raster_pass, command);
 	}
 	else if (h->kind == RENOIR_HANDLE_KIND_COMPUTE_PASS)
 	{
-		_renoir_dx11_command_push(&h->compute_pass, command);
+		_renoir_dx11_command_push_back(&h->compute_pass, command);
 	}
 	else
 	{
@@ -4947,6 +4959,8 @@ _renoir_dx11_timer_end(struct Renoir* api, Renoir_Pass pass, Renoir_Timer timer)
 inline static void
 _renoir_load_api(Renoir* api)
 {
+	api->global_pass = Renoir_Pass{};
+
 	api->init = _renoir_dx11_init;
 	api->dispose = _renoir_dx11_dispose;
 
@@ -4989,8 +5003,7 @@ _renoir_load_api(Renoir* api)
 	api->timer_free = _renoir_dx11_timer_free;
 	api->timer_elapsed = _renoir_dx11_timer_elapsed;
 
-	api->pass_begin = _renoir_dx11_pass_begin;
-	api->pass_end = _renoir_dx11_pass_end;
+	api->pass_submit = _renoir_dx11_pass_submit;
 	api->clear = _renoir_dx11_clear;
 	api->use_pipeline = _renoir_dx11_use_pipeline;
 	api->use_program = _renoir_dx11_use_program;
@@ -4999,9 +5012,6 @@ _renoir_load_api(Renoir* api)
 	api->buffer_zero = _renoir_dx11_buffer_zero;
 	api->buffer_write = _renoir_dx11_buffer_write;
 	api->texture_write = _renoir_dx11_texture_write;
-	api->buffer_zero_global = _renoir_dx11_buffer_zero_global;
-	api->buffer_write_global = _renoir_dx11_buffer_write_global;
-	api->texture_write_global = _renoir_dx11_texture_write_global;
 	api->buffer_read = _renoir_dx11_buffer_read;
 	api->texture_read = _renoir_dx11_texture_read;
 	api->buffer_bind = _renoir_dx11_buffer_bind;

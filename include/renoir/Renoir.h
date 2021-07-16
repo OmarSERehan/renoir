@@ -373,6 +373,8 @@ struct IRenoir;
 typedef struct Renoir
 {
 	struct IRenoir* ctx;
+	// this is the global command list, global list
+	Renoir_Pass global_pass;
 
 	bool (*init)(struct Renoir* self, Renoir_Settings settings, void* display);
 	void (*dispose)(struct Renoir* self);
@@ -417,8 +419,7 @@ typedef struct Renoir
 	bool (*timer_elapsed)(struct Renoir* api, Renoir_Timer timer, uint64_t* elapsed_time_in_nanos);
 
 	// Graphics Commands
-	void (*pass_begin)(struct Renoir* api, Renoir_Pass pass);
-	void (*pass_end)(struct Renoir* api, Renoir_Pass pass);
+	void (*pass_submit)(struct Renoir* api, Renoir_Pass pass);
 	void (*clear)(struct Renoir* api, Renoir_Pass pass, Renoir_Clear_Desc desc);
 	void (*use_pipeline)(struct Renoir* api, Renoir_Pass pass, Renoir_Pipeline_Desc pipeline);
 	void (*use_program)(struct Renoir* api, Renoir_Pass pass, Renoir_Program program);
@@ -426,15 +427,13 @@ typedef struct Renoir
 	void (*scissor)(struct Renoir* api, Renoir_Pass pass, int x, int y, int width, int height);
 	// Write Functions
 	// TODO(Moustapha): consider allowing the user to provide clear value other than zero
+
+	// you can pass a global_pass (or a pass with handle set to null) to schedule it on the global command list
 	void (*buffer_zero)(struct Renoir* api, Renoir_Pass pass, Renoir_Buffer buffer);
+	// you can pass a global_pass (or a pass with handle set to null) to schedule it on the global command list
 	void (*buffer_write)(struct Renoir* api, Renoir_Pass pass, Renoir_Buffer buffer, size_t offset, void* bytes, size_t bytes_size);
+	// you can pass a global_pass (or a pass with handle set to null) to schedule it on the global command list
 	void (*texture_write)(struct Renoir* api, Renoir_Pass pass, Renoir_Texture texture, Renoir_Texture_Edit_Desc desc);
-	// queues a buffer zero command in the global command list (without a pass)
-	void (*buffer_zero_global)(struct Renoir* api, Renoir_Buffer buffer);
-	// queues a buffer write command in the global command list (without a pass)
-	void (*buffer_write_global)(struct Renoir* api, Renoir_Buffer buffer, size_t offset, void* bytes, size_t bytes_size);
-	// queues a texture write command in the global command list (without a pass)
-	void (*texture_write_global)(struct Renoir* api, Renoir_Texture texture, Renoir_Texture_Edit_Desc desc);
 	// Read Functions
 	void (*buffer_read)(struct Renoir* api, Renoir_Buffer buffer, size_t offset, void* bytes, size_t bytes_size);
 	void (*texture_read)(struct Renoir* api, Renoir_Texture texture, Renoir_Texture_Edit_Desc desc);
