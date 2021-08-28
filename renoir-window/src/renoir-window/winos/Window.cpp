@@ -115,7 +115,7 @@ _renoir_map_keyboard_key(WPARAM k)
 	case VK_OEM_MINUS:
 		return RENOIR_KEY_MINUS;
 	case VK_OEM_PLUS:
-		return RENOIR_KEY_PLUS; // no native key for equal?
+		return RENOIR_KEY_EQUAL; // no native key for equal?
 	case VK_OEM_COMMA:
 		return RENOIR_KEY_COMMA;
 	case VK_OEM_1:

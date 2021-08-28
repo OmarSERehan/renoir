@@ -118,11 +118,11 @@ _renoir_map_keyboard_key(KeySym key)
 	case XK_grave: return RENOIR_KEY_BACKQUOTE;
 	case XK_period: return RENOIR_KEY_PERIOD;
 	case XK_minus: return RENOIR_KEY_MINUS;
-	case XK_plus: return RENOIR_KEY_PLUS;
+	// case XK_plus: return RENOIR_KEY_PLUS;
 	case XK_equal: return RENOIR_KEY_EQUAL;
 	case XK_comma: return RENOIR_KEY_COMMA;
 	case XK_semicolon: return RENOIR_KEY_SEMICOLON;
-	case XK_colon: return RENOIR_KEY_COLON;
+	// case XK_colon: return RENOIR_KEY_COLON;
 	case XK_space: return RENOIR_KEY_SPACE;
 
 	// special keys

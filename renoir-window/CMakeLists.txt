@@ -9,6 +9,9 @@ set(HEADER_FILES
 set(SOURCE_FILES
 )
 
+# add library target
+add_library(renoir-window)
+
 # list os specfic files
 if(WIN32)
 	set(SOURCE_FILES ${SOURCE_FILES}
@@ -20,29 +23,24 @@ elseif(UNIX AND NOT APPLE)
 	)
 elseif(APPLE)
 	set(SOURCE_FILES ${SOURCE_FILES}
-		
+		src/renoir-window/macos/Window.mm
 	)
+	find_library(COCOA_LIBRARY Cocoa)
+	target_link_libraries(renoir-window PRIVATE ${COCOA_LIBRARY})
+	enable_language(OBJCXX)
 endif()
-
-# add library target
-add_library(renoir-window)
 
 target_sources(renoir-window
 	PRIVATE ${HEADER_FILES}
 			${SOURCE_FILES}
 )
 
-if (RENOIR_UNITY_BUILD)
-	set_target_properties(renoir-window
-		PROPERTIES UNITY_BUILD_BATCH_SIZE 0
-				   UNITY_BUILD true)
-endif()
-
 add_library(MoustaphaSaad::renoir-window ALIAS renoir-window)
 
 target_link_libraries(renoir-window
 	PRIVATE
 		"$<$<PLATFORM_ID:Linux>:X11;GL;GLU>"
+		"$<$<PLATFORM_ID:Darwin>:-framework Cocoa>"
 		MoustaphaSaad::mn
 )
 
