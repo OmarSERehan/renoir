@@ -23,27 +23,39 @@ option(RENOIR_BUILD_EXAMPLES "Build example applications that showcase the renoi
 option(RENOIR_UNITY_BUILD "Combine all renoir source files into one jumbo build." ON)
 option(RENOIR_DEBUG_LAYER "Turn on debug layer in underlying graphics api" OFF)
 option(RENOIR_LEAK "Turn on leak detector for graphics resources" OFF)
+option(RENOIR_EXAMPLES_USES_NULL "Uses renoir null implementation for examples" OFF)
 
 # external dependencies
 include(CPM)
 CPMAddPackage(
 	NAME             mn
 	GIT_REPOSITORY   https://github.com/MoustaphaSaad/mn.git
-	GIT_TAG          2caf13002d03494e052948a12da4bdb52f3608a1
+	GIT_TAG          460ce8a423052444fd7e6176506d4c4e447da085
 )
-add_subdirectory(external/glew EXCLUDE_FROM_ALL)
 
 add_subdirectory(renoir-window)
-add_subdirectory(renoir-gl450)
 
 add_library(renoir INTERFACE)
 add_library(MoustaphaSaad::renoir ALIAS renoir)
 target_include_directories(renoir INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-add_dependencies(renoir renoir-gl450)
 
 if (WIN32)
+	add_subdirectory(renoir-null)
+
 	add_subdirectory(renoir-dx11)
 	add_dependencies(renoir renoir-dx11)
+
+	add_subdirectory(external/glew EXCLUDE_FROM_ALL)
+	add_subdirectory(renoir-gl450)
+	add_dependencies(renoir renoir-gl450)
+elseif (UNIX AND NOT APPLE)
+	add_subdirectory(renoir-null)
+
+	add_subdirectory(external/glew EXCLUDE_FROM_ALL)
+	add_subdirectory(renoir-gl450)
+	add_dependencies(renoir renoir-gl450)
+elseif (APPLE)
+	add_subdirectory(renoir-null)
 endif (WIN32)
 
 if (RENOIR_BUILD_EXAMPLES)

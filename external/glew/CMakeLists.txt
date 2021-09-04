@@ -37,7 +37,7 @@ if(WIN32)
 		PUBLIC
 			opengl32
 	)
-elseif(UNIX)
+elseif(UNIX AND NOT APPLE)
 	target_link_libraries(renoir-glew
 		PUBLIC
 			X11

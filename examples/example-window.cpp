@@ -1,6 +1,11 @@
 #include <stdio.h>
 #include <renoir-window/Window.h>
+
+#if RENOIR_EXAMPLES_USES_NULL
+#include <renoir-null/Renoir-null.h>
+#else
 #include <renoir-gl450/Renoir-gl450.h>
+#endif
 
 #include <assert.h>
 

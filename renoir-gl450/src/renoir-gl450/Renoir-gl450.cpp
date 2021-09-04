@@ -66,7 +66,7 @@ _renoir_gl450_error_source_string(GLenum v)
 	case GL_DEBUG_SOURCE_WINDOW_SYSTEM: return "window system";
 	case GL_DEBUG_SOURCE_SHADER_COMPILER: return "shader compiler";
 	case GL_DEBUG_SOURCE_THIRD_PARTY: return "third party";
-	case GL_DEBUG_SOURCE_APPLICATION: "application";
+	case GL_DEBUG_SOURCE_APPLICATION: return "application";
 	case GL_DEBUG_SOURCE_OTHER: return "other";
 	default: return "<unknown>";
 	}
@@ -2128,7 +2128,7 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 				glDisable(GL_SCISSOR_TEST);
 				self->current_pass = h;
 			}
-			// this is an off screen
+			// this is an offscreen
 			else if (h->raster_pass.fb != 0)
 			{
 				glBindFramebuffer(GL_FRAMEBUFFER, h->raster_pass.fb);
@@ -2163,7 +2163,7 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 			auto scissor_enabled = glIsEnabled(GL_SCISSOR_TEST);
 			glDisable(GL_SCISSOR_TEST);
 
-			// if this is an off screen view with msaa we'll need to issue a read command to move the data
+			// if this is an offscreen view with msaa we'll need to issue a read command to move the data
 			// from renderbuffer to the texture
 			for (size_t i = 0; i < RENOIR_CONSTANT_COLOR_ATTACHMENT_SIZE; ++i)
 			{
@@ -2287,7 +2287,7 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 						if (i > 0)
 							break;
 					}
-					// offscreen passes can have multiple color targets but we have to make sure that this target exists
+					// offscreen passes can have multiple color targets, but we have to make sure that this target exists
 					else
 					{
 						if (pass->raster_pass.offscreen.color[i].texture.handle == nullptr)
@@ -2955,7 +2955,7 @@ _renoir_gl450_sampler_get(IRenoir* self, Renoir_Sampler_Desc desc)
 	// we didn't find a matching sampler, so create new one
 	size_t sampler_ix = first_empty_ix;
 
-	// we didn't find an empty slot for the new sampler so we'll have to make one for it
+	// we didn't find an empty slot for the new sampler, so we'll have to make one for it
 	if (sampler_ix == self->sampler_cache.count)
 	{
 		auto to_be_evicted = mn::buf_top(self->sampler_cache);
@@ -3366,7 +3366,7 @@ _renoir_gl450_texture_new(Renoir* api, Renoir_Texture_Desc desc)
 		assert(false && "a static texture cannot have write access");
 	}
 
-	if (desc.render_target == false && desc.usage == RENOIR_USAGE_STATIC && desc.data == nullptr)
+	if (desc.render_target == false && desc.usage == RENOIR_USAGE_STATIC)
 	{
 		assert(false && "a static texture should have data to initialize it");
 	}
@@ -3739,42 +3739,6 @@ _renoir_gl450_timer_elapsed(struct Renoir* api, Renoir_Timer timer, uint64_t* el
 }
 
 // Graphics Commands
-static void
-_renoir_gl450_pass_begin(Renoir* api, Renoir_Pass pass)
-{
-	auto self = api->ctx;
-	auto h = (Renoir_Handle*)pass.handle;
-	assert(h != nullptr);
-	if (h->kind == RENOIR_HANDLE_KIND_RASTER_PASS)
-	{
-		h->raster_pass.command_list_head = nullptr;
-		h->raster_pass.command_list_tail = nullptr;
-
-		mn::mutex_lock(self->mtx);
-		mn_defer(mn::mutex_unlock(self->mtx));
-
-		auto command = _renoir_gl450_command_new(self, RENOIR_COMMAND_KIND_PASS_BEGIN);
-		command->pass_begin.handle = h;
-		_renoir_gl450_command_push_back(&h->raster_pass, command);
-	}
-	else if (h->kind == RENOIR_HANDLE_KIND_COMPUTE_PASS)
-	{
-		h->compute_pass.command_list_head = nullptr;
-		h->compute_pass.command_list_tail = nullptr;
-
-		mn::mutex_lock(self->mtx);
-		mn_defer(mn::mutex_unlock(self->mtx));
-
-		auto command = _renoir_gl450_command_new(self, RENOIR_COMMAND_KIND_PASS_BEGIN);
-		command->pass_begin.handle = h;
-		_renoir_gl450_command_push_back(&h->compute_pass, command);
-	}
-	else
-	{
-		assert(false && "invalid pass");
-	}
-}
-
 static void
 _renoir_gl450_pass_submit(Renoir* api, Renoir_Pass pass)
 {

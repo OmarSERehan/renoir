@@ -3851,7 +3851,7 @@ _renoir_dx11_texture_new(Renoir* api, Renoir_Texture_Desc desc)
 		assert(false && "a static texture cannot have write access");
 	}
 
-	if (desc.render_target == false && desc.usage == RENOIR_USAGE_STATIC && desc.data == nullptr)
+	if (desc.render_target == false && desc.usage == RENOIR_USAGE_STATIC)
 	{
 		assert(false && "a static texture should have data to initialize it");
 	}
