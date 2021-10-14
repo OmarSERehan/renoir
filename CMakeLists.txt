@@ -30,7 +30,7 @@ include(CPM)
 CPMAddPackage(
 	NAME             mn
 	GIT_REPOSITORY   https://github.com/MoustaphaSaad/mn.git
-	GIT_TAG          v4.2.0
+	GIT_TAG          d617fce8b9223ba6fc5e63508d175d55796e71e6
 )
 
 add_subdirectory(renoir-window)

@@ -11,6 +11,7 @@
 #include <mn/Log.h>
 #include <mn/Map.h>
 #include <mn/Debug.h>
+#include <mn/Assert.h>
 
 #include <GL/glew.h>
 
@@ -24,31 +25,31 @@ _renoir_gl450_check()
 	switch (err)
 	{
 	case GL_INVALID_ENUM:
-		assert(false && "invalid enum value was passed");
+		mn_assert_msg(false, "invalid enum value was passed");
 		return false;
 
 	case GL_INVALID_VALUE:
-		assert(false && "invalid value was passed");
+		mn_assert_msg(false, "invalid value was passed");
 		return false;
 
 	case GL_INVALID_OPERATION:
-		assert(false && "invalid operation at the current state of opengl");
+		mn_assert_msg(false, "invalid operation at the current state of opengl");
 		return false;
 
 	case GL_INVALID_FRAMEBUFFER_OPERATION:
-		assert(false && "invalid framebuffer operation");
+		mn_assert_msg(false, "invalid framebuffer operation");
 		return false;
 
 	case GL_OUT_OF_MEMORY:
-		assert(false && "out of memory");
+		mn_assert_msg(false, "out of memory");
 		return false;
 
 	case GL_STACK_UNDERFLOW:
-		assert(false && "stack underflow");
+		mn_assert_msg(false, "stack underflow");
 		return false;
 
 	case GL_STACK_OVERFLOW:
-		assert(false && "stack overflow");
+		mn_assert_msg(false, "stack overflow");
 		return false;
 
 	case GL_NO_ERROR:
@@ -137,7 +138,7 @@ _renoir_face_to_gl(RENOIR_FACE f)
 		res = GL_FRONT_AND_BACK;
 		break;
 	default:
-		assert(false && "unreachable");
+		mn_unreachable();
 		break;
 	}
 	return res;
@@ -156,7 +157,7 @@ _renoir_orientation_to_gl(RENOIR_ORIENTATION ori)
 		res = GL_CW;
 		break;
 	default:
-		assert(false && "unreachable");
+		mn_unreachable();
 		break;
 	}
 	return res;
@@ -193,7 +194,7 @@ _renoir_blend_to_gl(RENOIR_BLEND p)
 		res = GL_ONE_MINUS_SRC_ALPHA;
 		break;
 	default:
-		assert(false && "unreachable");
+		mn_unreachable();
 		break;
 	}
 	return res;
@@ -218,7 +219,7 @@ _renoir_blend_eq_to_gl(RENOIR_BLEND_EQ eq)
 		res = GL_MAX;
 		break;
 	default:
-		assert(false && "unreachable");
+		mn_unreachable();
 		break;
 	}
 	return res;
@@ -243,7 +244,7 @@ _renoir_buffer_type_to_gl(RENOIR_BUFFER type)
 		res = GL_SHADER_STORAGE_BUFFER;
 		break;
 	default:
-		assert(false && "unreachable");
+		mn_unreachable();
 		break;
 	}
 	return res;
@@ -262,7 +263,7 @@ _renoir_usage_to_gl(RENOIR_USAGE usage)
 		res = GL_DYNAMIC_DRAW;
 		break;
 	default:
-		assert(false && "unreachable");
+		mn_unreachable();
 		break;
 	}
 	return res;
@@ -308,7 +309,7 @@ _renoir_pixelformat_to_internal_gl(RENOIR_PIXELFORMAT format)
 		res = GL_R8;
 		break;
 	default:
-		assert(false && "unreachable");
+		mn_unreachable();
 		break;
 	}
 	return res;
@@ -346,7 +347,7 @@ _renoir_pixelformat_to_gl(RENOIR_PIXELFORMAT format)
 		res = GL_DEPTH_STENCIL;
 		break;
 	default:
-		assert(false && "unreachable");
+		mn_unreachable();
 		break;
 	}
 	return res;
@@ -382,7 +383,7 @@ _renoir_pixelformat_to_type_gl(RENOIR_PIXELFORMAT format)
 		res = GL_UNSIGNED_INT_24_8;
 		break;
 	default:
-		assert(false && "unreachable");
+		mn_unreachable();
 		break;
 	}
 	return res;
@@ -426,7 +427,7 @@ _renoir_pixelformat_to_gl_compute(RENOIR_PIXELFORMAT format)
 		res = GL_R8;
 		break;
 	default:
-		assert(false && "unreachable");
+		mn_unreachable();
 		break;
 	}
 	return res;
@@ -445,7 +446,7 @@ _renoir_pixelformat_to_depth_attachment(RENOIR_PIXELFORMAT format)
 		res = GL_DEPTH_STENCIL_ATTACHMENT;
 		break;
 	default:
-		assert(false && "unreachable");
+		mn_unreachable();
 		break;
 	}
 	return res;
@@ -481,7 +482,7 @@ _renoir_type_to_gl(RENOIR_TYPE type)
 		res = GL_FLOAT;
 		break;
 	default:
-		assert(false && "unreachable");
+		mn_unreachable();
 		break;
 	}
 	return res;
@@ -517,7 +518,7 @@ _renoir_type_to_size(RENOIR_TYPE type)
 		res = 16;
 		break;
 	default:
-		assert(false && "unreachable");
+		mn_unreachable();
 		break;
 	}
 	return res;
@@ -550,7 +551,7 @@ _renoir_type_to_gl_element_count(RENOIR_TYPE type)
 		res = 4;
 		break;
 	default:
-		assert(false && "unreachable");
+		mn_unreachable();
 		break;
 	}
 	return res;
@@ -597,7 +598,7 @@ _renoir_min_filter_to_gl(RENOIR_FILTER filter)
 		break;
 
 	default:
-		assert(false && "unreachable");
+		mn_unreachable();
 		break;
 	}
 	return res;
@@ -618,7 +619,7 @@ _renoir_mag_filter_to_gl(RENOIR_FILTER filter)
 		break;
 
 	default:
-		assert(false && "unreachable");
+		mn_unreachable();
 		break;
 	}
 	return res;
@@ -663,7 +664,7 @@ _renoir_compare_to_gl(RENOIR_COMPARE compare)
 		break;
 
 	default:
-		assert(false && "unreachable");
+		mn_unreachable();
 		break;
 	}
 	return res;
@@ -692,7 +693,7 @@ _renoir_texmode_to_gl(RENOIR_TEXMODE mode)
 		break;
 
 	default:
-		assert(false && "unreachable");
+		mn_unreachable();
 		break;
 	}
 	return res;
@@ -714,7 +715,7 @@ _renoir_primitive_to_gl(RENOIR_PRIMITIVE p)
 		res = GL_TRIANGLES;
 		break;
 	default:
-		assert(false && "unreachable");
+		mn_unreachable();
 		break;
 	}
 	return res;
@@ -736,7 +737,7 @@ _renoir_access_to_gl(RENOIR_ACCESS a)
 		res = GL_READ_WRITE;
 		break;
 	default:
-		assert(false && "unreachable");
+		mn_unreachable();
 		break;
 	}
 	return res;
@@ -757,7 +758,7 @@ _renoir_handle_kind_name(RENOIR_HANDLE_KIND kind)
 	case RENOIR_HANDLE_KIND_PROGRAM: return "program";
 	case RENOIR_HANDLE_KIND_COMPUTE: return "compute";
 	case RENOIR_HANDLE_KIND_PIPELINE: return "pipeline";
-	default: assert(false && "invalid handle kind"); return "<INVALID>";
+	default: mn_unreachable_msg("invalid handle kind"); return "<INVALID>";
 	}
 }
 
@@ -1264,7 +1265,7 @@ _renoir_gl450_handle_new(IRenoir* self, RENOIR_HANDLE_KIND kind)
 	#ifdef DEBUG
 	if (_renoir_handle_kind_should_track(kind))
 	{
-		assert(mn::map_lookup(self->alive_handles, handle) == nullptr && "reuse of already alive renoir handle");
+		mn_assert_msg(mn::map_lookup(self->alive_handles, handle) == nullptr, "reuse of already alive renoir handle");
 		Renoir_Leak_Info info{};
 		#if RENOIR_LEAK
 			info.callstack_size = mn::callstack_capture(info.callstack, 20);
@@ -1283,7 +1284,7 @@ _renoir_gl450_handle_free(IRenoir* self, Renoir_Handle* h)
 	if (_renoir_handle_kind_should_track(h->kind))
 	{
 		auto removed = mn::map_remove(self->alive_handles, h);
-		assert(removed && "free was called with an invalid renoir handle");
+		mn_assert_msg(removed, "free was called with an invalid renoir handle");
 	}
 	#endif
 	mn::pool_put(self->handle_pool, h);
@@ -1468,7 +1469,7 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 		{
 			// we just need to init glew in case of external context
 			GLenum glew_result = glewInit();
-			assert(glew_result == GLEW_OK && "glewInit failed");
+			mn_assert_msg(glew_result == GLEW_OK, "glewInit failed");
 
 			mn::log_info("OpenGL Renderer: {}", renderer);
 			mn::log_info("OpenGL Version: {}", version);
@@ -1493,7 +1494,7 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 		GLint max_samplers = 0;
 		glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &max_samplers);
 		mn::buf_resize(self->state.last_samplers, max_samplers);
-		assert(_renoir_gl450_check());
+		mn_assert(_renoir_gl450_check());
 
 		self->info_description = mn::strf("Renderer: {}, Version: {}, GLSL Version: {}", renderer, version, shader);
 		break;
@@ -1501,7 +1502,7 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 	case RENOIR_COMMAND_KIND_SWAPCHAIN_NEW:
 	{
 		renoir_gl450_context_window_init(self->ctx, command->swapchain_new.handle, &self->settings);
-		assert(_renoir_gl450_check());
+		mn_assert(_renoir_gl450_check());
 		break;
 	}
 	case RENOIR_COMMAND_KIND_SWAPCHAIN_FREE:
@@ -1510,14 +1511,14 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 		if (_renoir_gl450_handle_unref(h) == false)
 			break;
 		renoir_gl450_context_window_free(self->ctx, h);
-		assert(_renoir_gl450_check());
+		mn_assert(_renoir_gl450_check());
 		_renoir_gl450_handle_free(self, h);
 		break;
 	}
 	case RENOIR_COMMAND_KIND_PASS_SWAPCHAIN_NEW:
 	{
 		// do nothing
-		assert(_renoir_gl450_check());
+		mn_assert(_renoir_gl450_check());
 		break;
 	}
 	case RENOIR_COMMAND_KIND_PASS_OFFSCREEN_NEW:
@@ -1535,7 +1536,7 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 			auto color = (Renoir_Handle*)desc.color[i].texture.handle;
 			if (color == nullptr)
 				continue;
-			assert(color->texture.desc.render_target);
+			mn_assert(color->texture.desc.render_target);
 			attachments[i] = GL_COLOR_ATTACHMENT0 + i;
 
 			_renoir_gl450_handle_ref(color);
@@ -1543,12 +1544,12 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 			{
 				if (color->texture.desc.msaa != RENOIR_MSAA_MODE_NONE)
 				{
-					assert(desc.color[i].level == 0 && "multisampled textures does not support mipmaps");
+					mn_assert_msg(desc.color[i].level == 0, "multisampled textures does not support mipmaps");
 					glNamedFramebufferRenderbuffer(h->raster_pass.fb, GL_COLOR_ATTACHMENT0+i,  GL_RENDERBUFFER, color->texture.render_buffer[0]);
 				}
 				else
 				{
-					assert(desc.color[i].level < color->texture.desc.mipmaps && "out of range mip level");
+					mn_assert_msg(desc.color[i].level < color->texture.desc.mipmaps, "out of range mip level");
 					glNamedFramebufferTexture(h->raster_pass.fb, GL_COLOR_ATTACHMENT0+i, color->texture.id, desc.color[i].level);
 				}
 			}
@@ -1556,13 +1557,13 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 			{
 				if (color->texture.desc.msaa != RENOIR_MSAA_MODE_NONE)
 				{
-					assert(desc.color[i].level == 0 && "multisampled textures does not support mipmaps");
+					mn_assert_msg(desc.color[i].level == 0, "multisampled textures does not support mipmaps");
 					glNamedFramebufferRenderbuffer(h->raster_pass.fb, GL_COLOR_ATTACHMENT0+i,  GL_RENDERBUFFER, color->texture.render_buffer[desc.color[i].subresource]);
 				}
 				else
 				{
-					assert(desc.color[i].level < color->texture.desc.mipmaps && "out of range mip level");
-					assert(_renoir_gl450_check());
+					mn_assert_msg(desc.color[i].level < color->texture.desc.mipmaps, "out of range mip level");
+					mn_assert(_renoir_gl450_check());
 					glBindFramebuffer(GL_FRAMEBUFFER, h->raster_pass.fb);
 					glFramebufferTexture2D(
 						GL_FRAMEBUFFER,
@@ -1571,7 +1572,7 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 						color->texture.id,
 						desc.color[i].level
 					);
-					assert(_renoir_gl450_check());
+					mn_assert(_renoir_gl450_check());
 				}
 			}
 
@@ -1582,16 +1583,16 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 			}
 			else
 			{
-				assert(msaa == color->texture.desc.msaa);
+				mn_assert(msaa == color->texture.desc.msaa);
 			}
 		}
 		glNamedFramebufferDrawBuffers(h->raster_pass.fb, RENOIR_CONSTANT_COLOR_ATTACHMENT_SIZE, attachments);
-		assert(_renoir_gl450_check());
+		mn_assert(_renoir_gl450_check());
 
 		auto depth = (Renoir_Handle*)desc.depth_stencil.texture.handle;
 		if (depth)
 		{
-			assert(depth->texture.desc.render_target);
+			mn_assert(depth->texture.desc.render_target);
 			_renoir_gl450_handle_ref(depth);
 
 			auto attachment = _renoir_pixelformat_to_depth_attachment(depth->texture.desc.pixel_format);
@@ -1600,12 +1601,12 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 			{
 				if (depth->texture.desc.msaa != RENOIR_MSAA_MODE_NONE)
 				{
-					assert(desc.depth_stencil.level == 0 && "multisampled textures does not support mipmaps");
+					mn_assert_msg(desc.depth_stencil.level == 0, "multisampled textures does not support mipmaps");
 					glNamedFramebufferRenderbuffer(h->raster_pass.fb, attachment,  GL_RENDERBUFFER, depth->texture.render_buffer[0]);
 				}
 				else
 				{
-					assert(desc.depth_stencil.level < depth->texture.desc.mipmaps && "out of range mip level");
+					mn_assert_msg(desc.depth_stencil.level < depth->texture.desc.mipmaps, "out of range mip level");
 					glNamedFramebufferTexture(h->raster_pass.fb, attachment, depth->texture.id, desc.depth_stencil.level);
 				}
 			}
@@ -1613,12 +1614,12 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 			{
 				if (depth->texture.desc.msaa != RENOIR_MSAA_MODE_NONE)
 				{
-					assert(desc.depth_stencil.level == 0 && "multisampled textures does not support mipmaps");
+					mn_assert_msg(desc.depth_stencil.level == 0, "multisampled textures does not support mipmaps");
 					glNamedFramebufferRenderbuffer(h->raster_pass.fb, attachment,  GL_RENDERBUFFER, depth->texture.render_buffer[desc.depth_stencil.subresource]);
 				}
 				else
 				{
-					assert(desc.depth_stencil.level < depth->texture.desc.mipmaps && "out of range mip level");
+					mn_assert_msg(desc.depth_stencil.level < depth->texture.desc.mipmaps, "out of range mip level");
 					glBindFramebuffer(GL_FRAMEBUFFER, h->raster_pass.fb);
 					glFramebufferTexture2D(
 						GL_FRAMEBUFFER,
@@ -1637,11 +1638,11 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 			}
 			else
 			{
-				assert(msaa == depth->texture.desc.msaa);
+				mn_assert(msaa == depth->texture.desc.msaa);
 			}
 		}
-		assert(_renoir_gl450_check());
-		assert(glCheckNamedFramebufferStatus(h->raster_pass.fb, GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
+		mn_assert(_renoir_gl450_check());
+		mn_assert(glCheckNamedFramebufferStatus(h->raster_pass.fb, GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
 		break;
 	}
 	case RENOIR_COMMAND_KIND_PASS_COMPUTE_NEW:
@@ -1694,11 +1695,11 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 		}
 		else
 		{
-			assert(false && "invalid pass");
+			mn_unreachable_msg("invalid pass");
 		}
 
 		_renoir_gl450_handle_free(self, h);
-		assert(_renoir_gl450_check());
+		mn_assert(_renoir_gl450_check());
 		break;
 	}
 	case RENOIR_COMMAND_KIND_BUFFER_NEW:
@@ -1708,8 +1709,8 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 
 		if (desc.type == RENOIR_BUFFER_COMPUTE)
 		{
-			assert(
-				desc.compute_buffer_stride > 0 && desc.compute_buffer_stride % 4 == 0 &&
+			mn_assert_msg(
+				desc.compute_buffer_stride > 0 && desc.compute_buffer_stride % 4 == 0,
 				"compute buffer stride should be greater than 0, no greater than 2048, and a multiple of 4"
 			);
 		}
@@ -1719,7 +1720,7 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 		renoir_gl450_context_bind(self->ctx);
 		glCreateBuffers(1, &h->buffer.id);
 		glNamedBufferData(h->buffer.id, desc.data_size, desc.data, gl_usage);
-		assert(_renoir_gl450_check());
+		mn_assert(_renoir_gl450_check());
 		break;
 	}
 	case RENOIR_COMMAND_KIND_BUFFER_FREE:
@@ -1729,7 +1730,7 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 			break;
 		glDeleteBuffers(1, &h->buffer.id);
 		_renoir_gl450_handle_free(self, h);
-		assert(_renoir_gl450_check());
+		mn_assert(_renoir_gl450_check());
 		break;
 	}
 	case RENOIR_COMMAND_KIND_TEXTURE_NEW:
@@ -1875,7 +1876,7 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 					glGenerateTextureMipmap(h->texture.id);
 			}
 		}
-		assert(_renoir_gl450_check());
+		mn_assert(_renoir_gl450_check());
 		break;
 	}
 	case RENOIR_COMMAND_KIND_TEXTURE_FREE:
@@ -1892,7 +1893,7 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 			glDeleteRenderbuffers(1, &h->texture.render_buffer[i]);
 		}
 		_renoir_gl450_handle_free(self, h);
-		assert(_renoir_gl450_check());
+		mn_assert(_renoir_gl450_check());
 		break;
 	}
 	case RENOIR_COMMAND_KIND_SAMPLER_NEW:
@@ -1922,7 +1923,7 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 
 		glSamplerParameteri(h->sampler.id, GL_TEXTURE_COMPARE_FUNC, gl_compare);
 		glSamplerParameterfv(h->sampler.id, GL_TEXTURE_BORDER_COLOR, &desc.border.r);
-		assert(_renoir_gl450_check());
+		mn_assert(_renoir_gl450_check());
 		break;
 	}
 	case RENOIR_COMMAND_KIND_SAMPLER_FREE:
@@ -1932,7 +1933,7 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 			break;
 		glDeleteSamplers(1, &h->sampler.id);
 		_renoir_gl450_handle_free(self, h);
-		assert(_renoir_gl450_check());
+		mn_assert(_renoir_gl450_check());
 		break;
 	}
 	case RENOIR_COMMAND_KIND_PROGRAM_NEW:
@@ -2013,7 +2014,7 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 			glDeleteShader(geometry_shader);
 		}
 
-		assert(_renoir_gl450_check());
+		mn_assert(_renoir_gl450_check());
 		break;
 	}
 	case RENOIR_COMMAND_KIND_PROGRAM_FREE:
@@ -2023,7 +2024,7 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 			break;
 		glDeleteProgram(h->program.id);
 		_renoir_gl450_handle_free(self, h);
-		assert(_renoir_gl450_check());
+		mn_assert(_renoir_gl450_check());
 		break;
 	}
 	case RENOIR_COMMAND_KIND_COMPUTE_NEW:
@@ -2063,7 +2064,7 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 
 		glDetachShader(h->compute.id, compute_shader);
 		glDeleteShader(compute_shader);
-		assert(_renoir_gl450_check());
+		mn_assert(_renoir_gl450_check());
 		break;
 	}
 	case RENOIR_COMMAND_KIND_COMPUTE_FREE:
@@ -2073,14 +2074,14 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 			break;
 		glDeleteProgram(h->compute.id);
 		_renoir_gl450_handle_free(self, h);
-		assert(_renoir_gl450_check());
+		mn_assert(_renoir_gl450_check());
 		break;
 	}
 	case RENOIR_COMMAND_KIND_TIMER_NEW:
 	{
 		auto h = command->timer_new.handle;
 		glGenQueries(2, h->timer.timepoints);
-		assert(_renoir_gl450_check());
+		mn_assert(_renoir_gl450_check());
 		break;
 	}
 	case RENOIR_COMMAND_KIND_TIMER_FREE:
@@ -2090,13 +2091,13 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 			break;
 		glDeleteQueries(2, h->timer.timepoints);
 		_renoir_gl450_handle_free(self, h);
-		assert(_renoir_gl450_check());
+		mn_assert(_renoir_gl450_check());
 		break;
 	}
 	case RENOIR_COMMAND_KIND_TIMER_ELAPSED:
 	{
 		auto h = command->timer_elapsed.handle;
-		assert(h->timer.state == RENOIR_TIMER_STATE_READ_SCHEDULED);
+		mn_assert(h->timer.state == RENOIR_TIMER_STATE_READ_SCHEDULED);
 		GLint result_available = 0;
 		glGetQueryObjectiv(h->timer.timepoints[1], GL_QUERY_RESULT_AVAILABLE, &result_available);
 		if (result_available)
@@ -2111,7 +2112,7 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 		{
 			h->timer.state = RENOIR_TIMER_STATE_END;
 		}
-		assert(_renoir_gl450_check());
+		mn_assert(_renoir_gl450_check());
 		break;
 	}
 	case RENOIR_COMMAND_KIND_PASS_BEGIN:
@@ -2138,7 +2139,7 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 			}
 			else
 			{
-				assert(false && "unreachable");
+				mn_unreachable();
 			}
 		}
 		else if (h->kind == RENOIR_HANDLE_KIND_COMPUTE_PASS)
@@ -2148,9 +2149,9 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 		}
 		else
 		{
-			assert(false && "invalid pass");
+			mn_unreachable_msg("invalid pass");
 		}
-		assert(_renoir_gl450_check());
+		mn_assert(_renoir_gl450_check());
 		break;
 	}
 	case RENOIR_COMMAND_KIND_PASS_END:
@@ -2205,7 +2206,7 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 				// clear color attachment
 				glNamedFramebufferTexture(self->msaa_resolve_fb, GL_COLOR_ATTACHMENT0 + i, 0, 0);
 			}
-			assert(_renoir_gl450_check());
+			mn_assert(_renoir_gl450_check());
 
 			// resolve depth textures as well
 			auto depth = (Renoir_Handle*)h->raster_pass.offscreen.depth_stencil.texture.handle;
@@ -2251,12 +2252,12 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 		}
 		else
 		{
-			assert(false && "invalid pass");
+			mn_unreachable_msg("invalid pass");
 		}
 		self->current_pass = nullptr;
 		self->current_pipeline->pipeline.desc = Renoir_Pipeline_Desc{};
 		_renoir_gl450_pipeline_desc_defaults(&self->current_pipeline->pipeline.desc);
-		assert(_renoir_gl450_check());
+		mn_assert(_renoir_gl450_check());
 		break;
 	}
 	case RENOIR_COMMAND_KIND_PASS_CLEAR:
@@ -2308,7 +2309,7 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 			clear_bits |= GL_STENCIL_BUFFER_BIT;
 		}
 		glClear(clear_bits);
-		assert(_renoir_gl450_check());
+		mn_assert(_renoir_gl450_check());
 		break;
 	}
 	case RENOIR_COMMAND_KIND_USE_PIPELINE:
@@ -2338,7 +2339,7 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 			glDisable(GL_SCISSOR_TEST);
 			break;
 		default:
-			assert(false && "unreachable");
+			mn_unreachable();
 			break;
 		}
 
@@ -2434,7 +2435,7 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 				break;
 		}
 
-		assert(_renoir_gl450_check());
+		mn_assert(_renoir_gl450_check());
 		break;
 	}
 	case RENOIR_COMMAND_KIND_USE_PROGRAM:
@@ -2443,7 +2444,7 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 		self->current_program = h;
 		self->current_compute = nullptr;
 		glUseProgram(self->current_program->program.id);
-		assert(_renoir_gl450_check());
+		mn_assert(_renoir_gl450_check());
 		break;
 	}
 	case RENOIR_COMMAND_KIND_USE_COMPUTE:
@@ -2452,13 +2453,13 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 		self->current_compute = h;
 		self->current_program = nullptr;
 		glUseProgram(self->current_compute->compute.id);
-		assert(_renoir_gl450_check());
+		mn_assert(_renoir_gl450_check());
 		break;
 	}
 	case RENOIR_COMMAND_KIND_SCISSOR:
 	{
 		glScissor(command->scissor.x, command->scissor.y, command->scissor.w, command->scissor.h);
-		assert(_renoir_gl450_check());
+		mn_assert(_renoir_gl450_check());
 		break;
 	}
 	case RENOIR_COMMAND_KIND_BUFFER_CLEAR:
@@ -2466,7 +2467,7 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 		auto h = command->buffer_clear.handle;
 		uint8_t value = 0;
 		glClearNamedBufferData(h->buffer.id, GL_R8UI, GL_RED_INTEGER, GL_UNSIGNED_BYTE, &value);
-		assert(_renoir_gl450_check());
+		mn_assert(_renoir_gl450_check());
 		break;
 	}
 	case RENOIR_COMMAND_KIND_BUFFER_WRITE:
@@ -2478,7 +2479,7 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 			command->buffer_write.bytes_size,
 			command->buffer_write.bytes
 		);
-		assert(_renoir_gl450_check());
+		mn_assert(_renoir_gl450_check());
 		break;
 	}
 	case RENOIR_COMMAND_KIND_TEXTURE_WRITE:
@@ -2570,7 +2571,7 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 			if (h->texture.desc.mipmaps > 1)
 				glGenerateTextureMipmap(h->texture.id);
 		}
-		assert(_renoir_gl450_check());
+		mn_assert(_renoir_gl450_check());
 		break;
 	}
 	case RENOIR_COMMAND_KIND_BUFFER_READ:
@@ -2584,7 +2585,7 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 		);
 		::memcpy(command->buffer_read.bytes, ptr, command->buffer_read.bytes_size);
 		glUnmapNamedBuffer(h->buffer.id);
-		assert(_renoir_gl450_check());
+		mn_assert(_renoir_gl450_check());
 		break;
 	}
 	case RENOIR_COMMAND_KIND_TEXTURE_READ:
@@ -2678,16 +2679,16 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 				command->texture_read.desc.bytes
 			);
 		}
-		assert(_renoir_gl450_check());
+		mn_assert(_renoir_gl450_check());
 		break;
 	}
 	case RENOIR_COMMAND_KIND_BUFFER_BIND:
 	{
 		auto h = command->buffer_bind.handle;
-		assert(h->buffer.type == RENOIR_BUFFER_UNIFORM || h->buffer.type == RENOIR_BUFFER_COMPUTE);
+		mn_assert(h->buffer.type == RENOIR_BUFFER_UNIFORM || h->buffer.type == RENOIR_BUFFER_COMPUTE);
 		auto gl_type = _renoir_buffer_type_to_gl(h->buffer.type);
 		glBindBufferBase(gl_type, command->buffer_bind.slot, h->buffer.id);
-		assert(_renoir_gl450_check());
+		mn_assert(_renoir_gl450_check());
 		break;
 	}
 	case RENOIR_COMMAND_KIND_BUFFER_STORAGE_BIND:
@@ -2701,7 +2702,7 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 			auto gl_type = _renoir_buffer_type_to_gl(h->buffer.type);
 			glBindBufferBase(gl_type, command->buffer_storage_bind.start_slot + i, h->buffer.id);
 		}
-		assert(_renoir_gl450_check());
+		mn_assert(_renoir_gl450_check());
 		break;
 	}
 	case RENOIR_COMMAND_KIND_TEXTURE_BIND:
@@ -2756,12 +2757,12 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 			// bind the used sampler
 			glBindSampler(command->texture_bind.slot, command->texture_bind.sampler->sampler.id);
 		}
-		assert(_renoir_gl450_check());
+		mn_assert(_renoir_gl450_check());
 		break;
 	}
 	case RENOIR_COMMAND_KIND_DRAW:
 	{
-		assert(self->current_pipeline && self->current_program && "you should use a program and a pipeline before drawing");
+		mn_assert_msg(self->current_pipeline && self->current_program, "you should use a program and a pipeline before drawing");
 
 		auto& desc = command->draw.desc;
 		glBindVertexArray(self->vao);
@@ -2847,34 +2848,34 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 			else
 				glDrawArrays(gl_primitive, desc.base_element, desc.elements_count);
 		}
-		assert(_renoir_gl450_check());
+		mn_assert(_renoir_gl450_check());
 		break;
 	}
 	case RENOIR_COMMAND_KIND_DISPATCH:
 	{
-		assert(self->current_compute && "you should use a compute before dispatching it");
+		mn_assert_msg(self->current_compute, "you should use a compute before dispatching it");
 		glDispatchCompute(command->dispatch.x, command->dispatch.y, command->dispatch.z);
 		// Note(Moustapha): not sure about this barrier
 		glMemoryBarrier(GL_ALL_BARRIER_BITS);
-		assert(_renoir_gl450_check());
+		mn_assert(_renoir_gl450_check());
 		break;
 	}
 	case RENOIR_COMMAND_KIND_TIMER_BEGIN:
 	{
 		auto h = command->timer_begin.handle;
 		glQueryCounter(h->timer.timepoints[0], GL_TIMESTAMP);
-		assert(_renoir_gl450_check());
+		mn_assert(_renoir_gl450_check());
 		break;
 	}
 	case RENOIR_COMMAND_KIND_TIMER_END:
 	{
 		auto h = command->timer_begin.handle;
 		glQueryCounter(h->timer.timepoints[1], GL_TIMESTAMP);
-		assert(_renoir_gl450_check());
+		mn_assert(_renoir_gl450_check());
 		break;
 	}
 	default:
-		assert(false && "unreachable");
+		mn_unreachable();
 		break;
 	}
 }
@@ -3197,7 +3198,7 @@ _renoir_gl450_flush(Renoir* api, void*, void*)
 		_renoir_gl450_command_free(self, it);
 	}
 
-	assert(_renoir_gl450_check());
+	mn_assert(_renoir_gl450_check());
 
 	_renoir_gl450_state_reset(self->state);
 
@@ -3230,7 +3231,7 @@ _renoir_gl450_swapchain_free(Renoir* api, Renoir_Swapchain swapchain)
 {
 	auto self = api->ctx;
 	auto h = (Renoir_Handle*)swapchain.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 
 	mn::mutex_lock(self->mtx);
 	mn_defer(mn::mutex_unlock(self->mtx));
@@ -3244,7 +3245,7 @@ static void
 _renoir_gl450_swapchain_resize(Renoir*, Renoir_Swapchain swapchain, int width, int height)
 {
 	auto h = (Renoir_Handle*)swapchain.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 
 	h->swapchain.width = width;
 	h->swapchain.height = height;
@@ -3255,7 +3256,7 @@ _renoir_gl450_swapchain_present(Renoir* api, Renoir_Swapchain swapchain)
 {
 	auto self = api->ctx;
 	auto h = (Renoir_Handle*)swapchain.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 
 	mn::mutex_lock(self->mtx);
 	mn_defer(mn::mutex_unlock(self->mtx));
@@ -3281,17 +3282,17 @@ _renoir_gl450_buffer_new(Renoir* api, Renoir_Buffer_Desc desc)
 
 	if (desc.usage == RENOIR_USAGE_DYNAMIC && desc.access == RENOIR_ACCESS_NONE)
 	{
-		assert(false && "a dynamic buffer with cpu access set to none is a static buffer");
+		mn_unreachable_msg("a dynamic buffer with cpu access set to none is a static buffer");
 	}
 
 	if (desc.usage == RENOIR_USAGE_STATIC && desc.data == nullptr)
 	{
-		assert(false && "a static buffer should have data to initialize it");
+		mn_unreachable_msg("a static buffer should have data to initialize it");
 	}
 
 	if (desc.type == RENOIR_BUFFER_UNIFORM && desc.data_size % 16 != 0)
 	{
-		assert(false && "uniform buffers should be aligned to 16 bytes");
+		mn_unreachable_msg("uniform buffers should be aligned to 16 bytes");
 	}
 
 	auto self = api->ctx;
@@ -3326,7 +3327,7 @@ _renoir_gl450_buffer_free(Renoir* api, Renoir_Buffer buffer)
 {
 	auto self = api->ctx;
 	auto h = (Renoir_Handle*)buffer.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 
 	mn::mutex_lock(self->mtx);
 	mn_defer(mn::mutex_unlock(self->mtx));
@@ -3340,7 +3341,7 @@ _renoir_gl450_buffer_size(Renoir* api, Renoir_Buffer buffer)
 {
 	auto self = api->ctx;
 	auto h = (Renoir_Handle*)buffer.handle;
-	assert(h != nullptr && h->kind == RENOIR_HANDLE_KIND_BUFFER);
+	mn_assert(h != nullptr && h->kind == RENOIR_HANDLE_KIND_BUFFER);
 
 	return h->buffer.size;
 }
@@ -3348,7 +3349,7 @@ _renoir_gl450_buffer_size(Renoir* api, Renoir_Buffer buffer)
 static Renoir_Texture
 _renoir_gl450_texture_new(Renoir* api, Renoir_Texture_Desc desc)
 {
-	assert(desc.size.width > 0 && "a texture must have at least width");
+	mn_assert_msg(desc.size.width > 0, "a texture must have at least width");
 
 	if (desc.usage == RENOIR_USAGE_NONE)
 		desc.usage = RENOIR_USAGE_STATIC;
@@ -3358,22 +3359,32 @@ _renoir_gl450_texture_new(Renoir* api, Renoir_Texture_Desc desc)
 
 	if (desc.usage == RENOIR_USAGE_DYNAMIC && desc.access == RENOIR_ACCESS_NONE)
 	{
-		assert(false && "a dynamic texture with cpu access set to none is a static texture");
+		mn_unreachable_msg("a dynamic texture with cpu access set to none is a static texture");
 	}
 
 	if (desc.usage == RENOIR_USAGE_STATIC && (desc.access == RENOIR_ACCESS_WRITE || desc.access == RENOIR_ACCESS_READ_WRITE))
 	{
-		assert(false && "a static texture cannot have write access");
+		mn_unreachable_msg("a static texture cannot have write access");
 	}
 
-	if (desc.render_target == false && desc.usage == RENOIR_USAGE_STATIC)
+	bool no_data = true;
+	for (size_t i = 0; i < sizeof(desc.data) / sizeof(*desc.data); ++i)
 	{
-		assert(false && "a static texture should have data to initialize it");
+		if (desc.data[i] != nullptr)
+		{
+			no_data = false;
+			break;
+		}
+	}
+
+	if (desc.render_target == false && desc.usage == RENOIR_USAGE_STATIC && no_data)
+	{
+		mn_unreachable_msg("a static texture should have data to initialize it");
 	}
 
 	if (desc.cube_map)
 	{
-		assert(desc.size.width == desc.size.height && "width should equal height in cube map texture");
+		mn_assert_msg(desc.size.width == desc.size.height, "width should equal height in cube map texture");
 	}
 
 	auto self = api->ctx;
@@ -3410,7 +3421,7 @@ _renoir_gl450_texture_free(Renoir* api, Renoir_Texture texture)
 {
 	auto self = api->ctx;
 	auto h = (Renoir_Handle*)texture.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 
 	mn::mutex_lock(self->mtx);
 	mn_defer(mn::mutex_unlock(self->mtx));
@@ -3423,7 +3434,7 @@ static void*
 _renoir_gl450_texture_native_handle(Renoir* api, Renoir_Texture texture)
 {
 	auto h = (Renoir_Handle*)texture.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 	return (void*)h->texture.id;
 }
 
@@ -3431,7 +3442,7 @@ static Renoir_Size
 _renoir_gl450_texture_size(Renoir* api, Renoir_Texture texture)
 {
 	auto h = (Renoir_Handle*)texture.handle;
-	assert(h != nullptr && h->kind == RENOIR_HANDLE_KIND_TEXTURE);
+	mn_assert(h != nullptr && h->kind == RENOIR_HANDLE_KIND_TEXTURE);
 	return h->texture.desc.size;
 }
 
@@ -3439,15 +3450,15 @@ static Renoir_Texture_Desc
 _renoir_gl450_texture_desc(Renoir* api, Renoir_Texture texture)
 {
 	auto h = (Renoir_Handle*)texture.handle;
-	assert(h != nullptr);
-	assert(h->kind == RENOIR_HANDLE_KIND_TEXTURE);
+	mn_assert(h != nullptr);
+	mn_assert(h->kind == RENOIR_HANDLE_KIND_TEXTURE);
 	return h->texture.desc;
 }
 
 static Renoir_Program
 _renoir_gl450_program_new(Renoir* api, Renoir_Program_Desc desc)
 {
-	assert(desc.vertex.bytes != nullptr && desc.pixel.bytes != nullptr);
+	mn_assert(desc.vertex.bytes != nullptr && desc.pixel.bytes != nullptr);
 	if (desc.vertex.size == 0)
 		desc.vertex.size = ::strlen(desc.vertex.bytes);
 	if (desc.pixel.size == 0)
@@ -3489,7 +3500,7 @@ _renoir_gl450_program_free(Renoir* api, Renoir_Program program)
 {
 	auto self = api->ctx;
 	auto h = (Renoir_Handle*)program.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 
 	mn::mutex_lock(self->mtx);
 	mn_defer(mn::mutex_unlock(self->mtx));
@@ -3502,7 +3513,7 @@ _renoir_gl450_program_free(Renoir* api, Renoir_Program program)
 static Renoir_Compute
 _renoir_gl450_compute_new(Renoir* api, Renoir_Compute_Desc desc)
 {
-	assert(desc.compute.bytes != nullptr);
+	mn_assert(desc.compute.bytes != nullptr);
 	if (desc.compute.size == 0)
 		desc.compute.size = ::strlen(desc.compute.bytes);
 
@@ -3531,7 +3542,7 @@ _renoir_gl450_compute_free(Renoir* api, Renoir_Compute compute)
 {
 	auto self = api->ctx;
 	auto h = (Renoir_Handle*)compute.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 
 	mn::mutex_lock(self->mtx);
 	mn_defer(mn::mutex_unlock(self->mtx));
@@ -3579,8 +3590,8 @@ _renoir_gl450_pass_offscreen_new(Renoir* api, Renoir_Pass_Offscreen_Desc desc)
 		}
 		else
 		{
-			assert(color->texture.desc.size.width * ::powf(0.5f, desc.color[i].level) == width);
-			assert(color->texture.desc.size.height * ::powf(0.5f, desc.color[i].level) == height);
+			mn_assert(color->texture.desc.size.width * ::powf(0.5f, desc.color[i].level) == width);
+			mn_assert(color->texture.desc.size.height * ::powf(0.5f, desc.color[i].level) == height);
 		}
 	}
 
@@ -3595,8 +3606,8 @@ _renoir_gl450_pass_offscreen_new(Renoir* api, Renoir_Pass_Offscreen_Desc desc)
 		}
 		else
 		{
-			assert(depth->texture.desc.size.width * ::powf(0.5f, desc.depth_stencil.level) == width);
-			assert(depth->texture.desc.size.height * ::powf(0.5f, desc.depth_stencil.level) == height);
+			mn_assert(depth->texture.desc.size.width * ::powf(0.5f, desc.depth_stencil.level) == width);
+			mn_assert(depth->texture.desc.size.height * ::powf(0.5f, desc.depth_stencil.level) == height);
 		}
 	}
 
@@ -3639,7 +3650,7 @@ _renoir_gl450_pass_free(Renoir* api, Renoir_Pass pass)
 	mn_defer(mn::mutex_unlock(self->mtx));
 
 	auto h = (Renoir_Handle*)pass.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 	auto command = _renoir_gl450_command_new(self, RENOIR_COMMAND_KIND_PASS_FREE);
 	command->pass_free.handle = h;
 	_renoir_gl450_command_process(self, command);
@@ -3650,8 +3661,8 @@ _renoir_gl450_pass_size(Renoir* api, Renoir_Pass pass)
 {
 	Renoir_Size res{};
 	auto h = (Renoir_Handle*)pass.handle;
-	assert(h != nullptr);
-	assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS);
+	mn_assert(h != nullptr);
+	mn_assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS);
 
 	// if this is an on screen/window
 	if (auto swapchain = h->raster_pass.swapchain)
@@ -3672,8 +3683,8 @@ static Renoir_Pass_Offscreen_Desc
 _renoir_gl450_pass_offscreen_desc(Renoir* api, Renoir_Pass pass)
 {
 	auto h = (Renoir_Handle*)pass.handle;
-	assert(h != nullptr);
-	assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS);
+	mn_assert(h != nullptr);
+	mn_assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS);
 	return h->raster_pass.offscreen;
 }
 
@@ -3698,7 +3709,7 @@ _renoir_gl450_timer_free(struct Renoir* api, Renoir_Timer timer)
 {
 	auto self = api->ctx;
 	auto h = (Renoir_Handle*)timer.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 
 	mn::mutex_lock(self->mtx);
 	mn_defer(mn::mutex_unlock(self->mtx));
@@ -3713,8 +3724,8 @@ _renoir_gl450_timer_elapsed(struct Renoir* api, Renoir_Timer timer, uint64_t* el
 {
 	auto self = api->ctx;
 	auto h = (Renoir_Handle*)timer.handle;
-	assert(h != nullptr);
-	assert(h->kind == RENOIR_HANDLE_KIND_TIMER);
+	mn_assert(h != nullptr);
+	mn_assert(h->kind == RENOIR_HANDLE_KIND_TIMER);
 
 	if (h->timer.state == RENOIR_TIMER_STATE_READY)
 	{
@@ -3744,7 +3755,7 @@ _renoir_gl450_pass_submit(Renoir* api, Renoir_Pass pass)
 {
 	auto self = api->ctx;
 	auto h = (Renoir_Handle*)pass.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 
 	if (h->kind == RENOIR_HANDLE_KIND_RASTER_PASS)
 	{
@@ -3846,7 +3857,7 @@ _renoir_gl450_pass_submit(Renoir* api, Renoir_Pass pass)
 	}
 	else
 	{
-		assert(false && "invalid pass");
+		mn_unreachable_msg("invalid pass");
 	}
 }
 
@@ -3855,9 +3866,9 @@ _renoir_gl450_clear(Renoir* api, Renoir_Pass pass, Renoir_Clear_Desc desc)
 {
 	auto self = api->ctx;
 	auto h = (Renoir_Handle*)pass.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 
-	assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS);
+	mn_assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS);
 
 	if (desc.independent_clear_color == RENOIR_SWITCH_DEFAULT)
 		desc.independent_clear_color = RENOIR_SWITCH_DISABLE;
@@ -3875,9 +3886,9 @@ _renoir_gl450_use_pipeline(Renoir* api, Renoir_Pass pass, Renoir_Pipeline_Desc p
 {
 	auto self = api->ctx;
 	auto h = (Renoir_Handle*)pass.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 
-	assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS);
+	mn_assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS);
 	_renoir_gl450_pipeline_desc_defaults(&pipeline_desc);
 
 	mn::mutex_lock(self->mtx);
@@ -3893,9 +3904,9 @@ _renoir_gl450_use_program(Renoir* api, Renoir_Pass pass, Renoir_Program program)
 {
 	auto self = api->ctx;
 	auto h = (Renoir_Handle*)pass.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 
-	assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS);
+	mn_assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS);
 
 	mn::mutex_lock(self->mtx);
 	auto command = _renoir_gl450_command_new(self, RENOIR_COMMAND_KIND_USE_PROGRAM);
@@ -3910,9 +3921,9 @@ _renoir_gl450_use_compute(Renoir* api, Renoir_Pass pass, Renoir_Compute compute)
 {
 	auto self = api->ctx;
 	auto h = (Renoir_Handle*)pass.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 
-	assert(h->kind == RENOIR_HANDLE_KIND_COMPUTE_PASS);
+	mn_assert(h->kind == RENOIR_HANDLE_KIND_COMPUTE_PASS);
 
 	mn::mutex_lock(self->mtx);
 	auto command = _renoir_gl450_command_new(self, RENOIR_COMMAND_KIND_USE_COMPUTE);
@@ -3927,9 +3938,9 @@ _renoir_gl450_scissor(Renoir* api, Renoir_Pass pass, int x, int y, int width, in
 {
 	auto self = api->ctx;
 	auto h = (Renoir_Handle*)pass.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 
-	assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS);
+	mn_assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS);
 
 	mn::mutex_lock(self->mtx);
 	auto command = _renoir_gl450_command_new(self, RENOIR_COMMAND_KIND_SCISSOR);
@@ -3947,9 +3958,9 @@ _renoir_gl450_buffer_zero_global(Renoir* api, Renoir_Buffer buffer)
 {
 	auto self = api->ctx;
 	auto hbuffer = (Renoir_Handle*)buffer.handle;
-	assert(hbuffer != nullptr);
+	mn_assert(hbuffer != nullptr);
 
-	assert(hbuffer->buffer.usage != RENOIR_USAGE_STATIC);
+	mn_assert(hbuffer->buffer.usage != RENOIR_USAGE_STATIC);
 
 	mn::mutex_lock(self->mtx);
 	mn_defer(mn::mutex_unlock(self->mtx));
@@ -3971,9 +3982,9 @@ _renoir_gl450_buffer_zero(Renoir* api, Renoir_Pass pass, Renoir_Buffer buffer)
 	else
 	{
 		auto hbuffer = (Renoir_Handle*)buffer.handle;
-		assert(hbuffer != nullptr);
+		mn_assert(hbuffer != nullptr);
 
-		assert(hbuffer->buffer.usage != RENOIR_USAGE_STATIC);
+		mn_assert(hbuffer->buffer.usage != RENOIR_USAGE_STATIC);
 
 		mn::mutex_lock(self->mtx);
 		auto command = _renoir_gl450_command_new(self, RENOIR_COMMAND_KIND_BUFFER_CLEAR);
@@ -3991,7 +4002,7 @@ _renoir_gl450_buffer_zero(Renoir* api, Renoir_Pass pass, Renoir_Buffer buffer)
 		}
 		else
 		{
-			assert(false && "invalid pass");
+			mn_unreachable_msg("invalid pass");
 		}
 	}
 }
@@ -4001,9 +4012,9 @@ _renoir_gl450_buffer_write_global(Renoir* api, Renoir_Buffer buffer, size_t offs
 {
 	auto self = api->ctx;
 	auto hbuffer = (Renoir_Handle*)buffer.handle;
-	assert(hbuffer != nullptr);
+	mn_assert(hbuffer != nullptr);
 
-	assert(hbuffer->buffer.usage != RENOIR_USAGE_STATIC);
+	mn_assert(hbuffer->buffer.usage != RENOIR_USAGE_STATIC);
 
 	mn::mutex_lock(self->mtx);
 	mn_defer(mn::mutex_unlock(self->mtx));
@@ -4033,9 +4044,9 @@ _renoir_gl450_buffer_write(Renoir* api, Renoir_Pass pass, Renoir_Buffer buffer, 
 	else
 	{
 		auto hbuffer = (Renoir_Handle*)buffer.handle;
-		assert(hbuffer != nullptr);
+		mn_assert(hbuffer != nullptr);
 
-		assert(hbuffer->buffer.usage != RENOIR_USAGE_STATIC);
+		mn_assert(hbuffer->buffer.usage != RENOIR_USAGE_STATIC);
 
 		mn::mutex_lock(self->mtx);
 		auto command = _renoir_gl450_command_new(self, RENOIR_COMMAND_KIND_BUFFER_WRITE);
@@ -4057,7 +4068,7 @@ _renoir_gl450_buffer_write(Renoir* api, Renoir_Pass pass, Renoir_Buffer buffer, 
 		}
 		else
 		{
-			assert(false && "invalid pass");
+			mn_unreachable_msg("invalid pass");
 		}
 	}
 }
@@ -4068,7 +4079,7 @@ _renoir_gl450_texture_write_global(Renoir* api, Renoir_Texture texture, Renoir_T
 	auto self = api->ctx;
 
 	auto htexture = (Renoir_Handle*)texture.handle;
-	assert(htexture->texture.desc.usage != RENOIR_USAGE_STATIC);
+	mn_assert(htexture->texture.desc.usage != RENOIR_USAGE_STATIC);
 
 	mn::mutex_lock(self->mtx);
 	mn_defer(mn::mutex_unlock(self->mtx));
@@ -4097,7 +4108,7 @@ _renoir_gl450_texture_write(Renoir* api, Renoir_Pass pass, Renoir_Texture textur
 	else
 	{
 		auto htexture = (Renoir_Handle*)texture.handle;
-		assert(htexture->texture.desc.usage != RENOIR_USAGE_STATIC);
+		mn_assert(htexture->texture.desc.usage != RENOIR_USAGE_STATIC);
 
 		mn::mutex_lock(self->mtx);
 		auto command = _renoir_gl450_command_new(self, RENOIR_COMMAND_KIND_TEXTURE_WRITE);
@@ -4118,7 +4129,7 @@ _renoir_gl450_texture_write(Renoir* api, Renoir_Pass pass, Renoir_Texture textur
 		}
 		else
 		{
-			assert(false && "invalid pass");
+			mn_unreachable_msg("invalid pass");
 		}
 	}
 }
@@ -4131,7 +4142,7 @@ _renoir_gl450_buffer_read(Renoir* api, Renoir_Buffer buffer, size_t offset, void
 		return;
 
 	auto h = (Renoir_Handle*)buffer.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 	// this means that buffer creation didn't execute yet
 	if (h->buffer.id == 0)
 	{
@@ -4161,7 +4172,7 @@ _renoir_gl450_texture_read(Renoir* api, Renoir_Texture texture, Renoir_Texture_E
 		return;
 
 	auto h = (Renoir_Handle*)texture.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 	// this means that texture creation didn't execute yet
 	if (h->texture.id == 0)
 	{
@@ -4186,9 +4197,9 @@ _renoir_gl450_buffer_bind(Renoir* api, Renoir_Pass pass, Renoir_Buffer buffer, R
 {
 	auto self = api->ctx;
 	auto h = (Renoir_Handle*)pass.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 
-	assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS);
+	mn_assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS);
 
 	mn::mutex_lock(self->mtx);
 	auto command = _renoir_gl450_command_new(self, RENOIR_COMMAND_KIND_BUFFER_BIND);
@@ -4206,9 +4217,9 @@ _renoir_gl450_buffer_storage_bind(Renoir* api, Renoir_Pass pass, Renoir_Buffer_S
 {
 	auto self = api->ctx;
 	auto h = (Renoir_Handle*)pass.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 
-	assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS);
+	mn_assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS);
 
 	mn::mutex_lock(self->mtx);
 	auto command = _renoir_gl450_command_new(self, RENOIR_COMMAND_KIND_BUFFER_STORAGE_BIND);
@@ -4231,10 +4242,10 @@ _renoir_gl450_buffer_storage_bind(Renoir* api, Renoir_Pass pass, Renoir_Buffer_S
 	}
 	else
 	{
-		assert(false && "unreachable");
+		mn_unreachable();
 	}
-	assert(desc.start_slot + render_target_count <= 8);
-	assert(desc.start_slot >= render_target_count);
+	mn_assert(desc.start_slot + render_target_count <= 8);
+	mn_assert(desc.start_slot >= render_target_count);
 
 	for (int i = 0; i < RENOIR_CONSTANT_BUFFER_STORAGE_SIZE; ++i)
 	{
@@ -4252,10 +4263,10 @@ _renoir_gl450_texture_bind(Renoir* api, Renoir_Pass pass, Renoir_Texture texture
 {
 	auto self = api->ctx;
 	auto h = (Renoir_Handle*)pass.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 
 	auto htex = (Renoir_Handle*)texture.handle;
-	assert(htex != nullptr);
+	mn_assert(htex != nullptr);
 
 	mn::mutex_lock(self->mtx);
 	auto sampler = _renoir_gl450_sampler_get(self, htex->texture.desc.sampler);
@@ -4275,10 +4286,10 @@ _renoir_gl450_texture_sampler_bind(Renoir* api, Renoir_Pass pass, Renoir_Texture
 {
 	auto self = api->ctx;
 	auto h = (Renoir_Handle*)pass.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 
 	auto htex = (Renoir_Handle*)texture.handle;
-	assert(htex != nullptr);
+	mn_assert(htex != nullptr);
 
 	mn::mutex_lock(self->mtx);
 	auto hsampler = _renoir_gl450_sampler_get(self, sampler);
@@ -4298,11 +4309,11 @@ _renoir_gl450_buffer_compute_bind(Renoir* api, Renoir_Pass pass, Renoir_Buffer b
 {
 	auto self = api->ctx;
 	auto h = (Renoir_Handle*)pass.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 
-	assert(h->kind == RENOIR_HANDLE_KIND_COMPUTE_PASS);
-	assert(
-		gpu_access != RENOIR_ACCESS_NONE &&
+	mn_assert(h->kind == RENOIR_HANDLE_KIND_COMPUTE_PASS);
+	mn_assert_msg(
+		gpu_access != RENOIR_ACCESS_NONE,
 		"gpu should read, write, or both, it has no meaning to bind a buffer that the GPU cannot read or write from"
 	);
 
@@ -4323,17 +4334,17 @@ _renoir_gl450_texture_compute_bind(Renoir* api, Renoir_Pass pass, Renoir_Texture
 {
 	auto self = api->ctx;
 	auto h = (Renoir_Handle*)pass.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 
-	assert(h->kind == RENOIR_HANDLE_KIND_COMPUTE_PASS);
-	assert(
-		gpu_access != RENOIR_ACCESS_NONE &&
+	mn_assert(h->kind == RENOIR_HANDLE_KIND_COMPUTE_PASS);
+	mn_assert_msg(
+		gpu_access != RENOIR_ACCESS_NONE,
 		"gpu should read, write, or both, it has no meaning to bind a texture that the GPU cannot read or write from"
 	);
 
 	if (gpu_access == RENOIR_ACCESS_READ)
 	{
-		assert(mip_level == 0 && "read only textures are bound as samplers, so you can't change mip level");
+		mn_assert_msg(mip_level == 0, "read only textures are bound as samplers, so you can't change mip level");
 	}
 
 	auto htex = (Renoir_Handle*)texture.handle;
@@ -4356,9 +4367,9 @@ _renoir_gl450_draw(Renoir* api, Renoir_Pass pass, Renoir_Draw_Desc desc)
 {
 	auto self = api->ctx;
 	auto h = (Renoir_Handle*)pass.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 
-	assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS);
+	mn_assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS);
 
 	mn::mutex_lock(self->mtx);
 	auto command = _renoir_gl450_command_new(self, RENOIR_COMMAND_KIND_DRAW);
@@ -4372,13 +4383,13 @@ _renoir_gl450_draw(Renoir* api, Renoir_Pass pass, Renoir_Draw_Desc desc)
 static void
 _renoir_gl450_dispatch(Renoir* api, Renoir_Pass pass, int x, int y, int z)
 {
-	assert(x >= 0 && y >= 0 && z >= 0);
+	mn_assert(x >= 0 && y >= 0 && z >= 0);
 
 	auto self = api->ctx;
 	auto h = (Renoir_Handle*)pass.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 
-	assert(h->kind == RENOIR_HANDLE_KIND_COMPUTE_PASS);
+	mn_assert(h->kind == RENOIR_HANDLE_KIND_COMPUTE_PASS);
 
 	mn::mutex_lock(self->mtx);
 	auto command = _renoir_gl450_command_new(self, RENOIR_COMMAND_KIND_DISPATCH);
@@ -4396,10 +4407,10 @@ _renoir_gl450_timer_begin(struct Renoir* api, Renoir_Pass pass, Renoir_Timer tim
 {
 	auto self = api->ctx;
 	auto h = (Renoir_Handle*)pass.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 
 	auto htimer = (Renoir_Handle*)timer.handle;
-	assert(htimer != nullptr && htimer->kind == RENOIR_HANDLE_KIND_TIMER);
+	mn_assert(htimer != nullptr && htimer->kind == RENOIR_HANDLE_KIND_TIMER);
 
 	if(htimer->timer.state != RENOIR_TIMER_STATE_NONE)
 		return;
@@ -4421,7 +4432,7 @@ _renoir_gl450_timer_begin(struct Renoir* api, Renoir_Pass pass, Renoir_Timer tim
 	}
 	else
 	{
-		assert(false && "unreachable");
+		mn_unreachable();
 	}
 }
 
@@ -4430,10 +4441,10 @@ _renoir_gl450_timer_end(struct Renoir* api, Renoir_Pass pass, Renoir_Timer timer
 {
 	auto self = api->ctx;
 	auto h = (Renoir_Handle*)pass.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 
 	auto htimer = (Renoir_Handle*)timer.handle;
-	assert(htimer != nullptr && htimer->kind == RENOIR_HANDLE_KIND_TIMER);
+	mn_assert(htimer != nullptr && htimer->kind == RENOIR_HANDLE_KIND_TIMER);
 	if (htimer->timer.state != RENOIR_TIMER_STATE_BEGIN)
 		return;
 
@@ -4454,7 +4465,7 @@ _renoir_gl450_timer_end(struct Renoir* api, Renoir_Pass pass, Renoir_Timer timer
 	}
 	else
 	{
-		assert(false && "unreachable");
+		mn_unreachable();
 	}
 }
 

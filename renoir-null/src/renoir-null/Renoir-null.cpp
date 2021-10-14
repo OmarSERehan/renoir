@@ -10,9 +10,9 @@
 #include <mn/Map.h>
 #include <mn/Str.h>
 #include <mn/Debug.h>
+#include <mn/Assert.h>
 
 #include <atomic>
-#include <assert.h>
 #include <math.h>
 #include <stdio.h>
 
@@ -117,7 +117,7 @@ _renoir_handle_kind_name(RENOIR_HANDLE_KIND kind)
 	case RENOIR_HANDLE_KIND_PROGRAM: return "program";
 	case RENOIR_HANDLE_KIND_COMPUTE: return "compute";
 	case RENOIR_HANDLE_KIND_PIPELINE: return "pipeline";
-	default: assert(false && "invalid handle kind"); return "<INVALID>";
+	default: mn_unreachable_msg("invalid handle kind"); return "<INVALID>";
 	}
 }
 
@@ -489,7 +489,7 @@ _renoir_null_handle_new(IRenoir* self, RENOIR_HANDLE_KIND kind)
 	#ifdef DEBUG
 	if (_renoir_handle_kind_should_track(kind))
 	{
-		assert(mn::map_lookup(self->alive_handles, handle) == nullptr && "reuse of already alive renoir handle");
+		mn_assert_msg(mn::map_lookup(self->alive_handles, handle) == nullptr, "reuse of already alive renoir handle");
 		Renoir_Leak_Info info{};
 		#if RENOIR_LEAK
 			info.callstack_size = mn::callstack_capture(info.callstack, 20);
@@ -508,7 +508,7 @@ _renoir_null_handle_free(IRenoir* self, Renoir_Handle* h)
 	if (_renoir_handle_kind_should_track(h->kind))
 	{
 		auto removed = mn::map_remove(self->alive_handles, h);
-		assert(removed && "free was called with an invalid renoir handle");
+		mn_assert_msg(removed, "free was called with an invalid renoir handle");
 	}
 	#endif
 	mn::pool_put(self->handle_pool, h);
@@ -640,7 +640,7 @@ _renoir_null_command_execute(IRenoir* self, Renoir_Command* command)
 			auto color = (Renoir_Handle*)desc.color[i].texture.handle;
 			if (color == nullptr)
 				continue;
-			assert(color->texture.desc.render_target);
+			mn_assert(color->texture.desc.render_target);
 
 			_renoir_null_handle_ref(color);
 		}
@@ -648,7 +648,7 @@ _renoir_null_command_execute(IRenoir* self, Renoir_Command* command)
 		auto depth = (Renoir_Handle*)desc.depth_stencil.texture.handle;
 		if (depth)
 		{
-			assert(depth->texture.desc.render_target);
+			mn_assert(depth->texture.desc.render_target);
 			_renoir_null_handle_ref(depth);
 		}
 		break;
@@ -757,7 +757,7 @@ _renoir_null_command_execute(IRenoir* self, Renoir_Command* command)
 		break;
 	}
 	default:
-		assert(false && "unreachable");
+		mn_unreachable();
 		break;
 	}
 }
@@ -998,7 +998,7 @@ _renoir_null_swapchain_free(Renoir* api, Renoir_Swapchain swapchain)
 {
 	auto self = api->ctx;
 	auto h = (Renoir_Handle*)swapchain.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 
 	mn::mutex_lock(self->mtx);
 	mn_defer(mn::mutex_unlock(self->mtx));
@@ -1013,7 +1013,7 @@ _renoir_null_swapchain_resize(Renoir* api, Renoir_Swapchain swapchain, int width
 {
 	auto self = api->ctx;
 	auto h = (Renoir_Handle*)swapchain.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 
 	mn::mutex_lock(self->mtx);
 	mn_defer(mn::mutex_unlock(self->mtx));
@@ -1030,7 +1030,7 @@ _renoir_null_swapchain_present(Renoir* api, Renoir_Swapchain swapchain)
 {
 	auto self = api->ctx;
 	auto h = (Renoir_Handle*)swapchain.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 
 	mn::mutex_lock(self->mtx);
 	mn_defer(mn::mutex_unlock(self->mtx));
@@ -1054,17 +1054,17 @@ _renoir_null_buffer_new(Renoir* api, Renoir_Buffer_Desc desc)
 
 	if (desc.usage == RENOIR_USAGE_DYNAMIC && desc.access == RENOIR_ACCESS_NONE)
 	{
-		assert(false && "a dynamic buffer with cpu access set to none is a static buffer");
+		mn_unreachable_msg("a dynamic buffer with cpu access set to none is a static buffer");
 	}
 
 	if (desc.usage == RENOIR_USAGE_STATIC && desc.data == nullptr)
 	{
-		assert(false && "a static buffer should have data to initialize it");
+		mn_unreachable_msg("a static buffer should have data to initialize it");
 	}
 
 	if (desc.type == RENOIR_BUFFER_UNIFORM && desc.data_size % 16 != 0)
 	{
-		assert(false && "uniform buffers should be aligned to 16 bytes");
+		mn_unreachable_msg("uniform buffers should be aligned to 16 bytes");
 	}
 
 	auto self = api->ctx;
@@ -1086,7 +1086,7 @@ _renoir_null_buffer_free(Renoir* api, Renoir_Buffer buffer)
 {
 	auto self = api->ctx;
 	auto h = (Renoir_Handle*)buffer.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 
 	mn::mutex_lock(self->mtx);
 	mn_defer(mn::mutex_unlock(self->mtx));
@@ -1100,7 +1100,7 @@ _renoir_null_buffer_size(Renoir* api, Renoir_Buffer buffer)
 {
 	auto self = api->ctx;
 	auto h = (Renoir_Handle*)buffer.handle;
-	assert(h != nullptr && h->kind == RENOIR_HANDLE_KIND_BUFFER);
+	mn_assert(h != nullptr && h->kind == RENOIR_HANDLE_KIND_BUFFER);
 
 	return h->buffer.size;
 }
@@ -1108,7 +1108,7 @@ _renoir_null_buffer_size(Renoir* api, Renoir_Buffer buffer)
 static Renoir_Texture
 _renoir_null_texture_new(Renoir* api, Renoir_Texture_Desc desc)
 {
-	assert(desc.size.width > 0 && "a texture must have at least width");
+	mn_assert_msg(desc.size.width > 0, "a texture must have at least width");
 
 	if (desc.usage == RENOIR_USAGE_NONE)
 		desc.usage = RENOIR_USAGE_STATIC;
@@ -1118,22 +1118,32 @@ _renoir_null_texture_new(Renoir* api, Renoir_Texture_Desc desc)
 
 	if (desc.usage == RENOIR_USAGE_DYNAMIC && desc.access == RENOIR_ACCESS_NONE)
 	{
-		assert(false && "a dynamic texture with cpu access set to none is a static texture");
+		mn_unreachable_msg("a dynamic texture with cpu access set to none is a static texture");
 	}
 
 	if (desc.usage == RENOIR_USAGE_STATIC && (desc.access == RENOIR_ACCESS_WRITE || desc.access == RENOIR_ACCESS_READ_WRITE))
 	{
-		assert(false && "a static texture cannot have write access");
+		mn_unreachable_msg("a static texture cannot have write access");
 	}
 
-	if (desc.render_target == false && desc.usage == RENOIR_USAGE_STATIC)
+	bool no_data = true;
+	for (size_t i = 0; i < sizeof(desc.data) / sizeof(*desc.data); ++i)
 	{
-		assert(false && "a static texture should have data to initialize it");
+		if (desc.data[i] != nullptr)
+		{
+			no_data = false;
+			break;
+		}
+	}
+
+	if (desc.render_target == false && desc.usage == RENOIR_USAGE_STATIC && no_data)
+	{
+		mn_unreachable_msg("a static texture should have data to initialize it");
 	}
 
 	if (desc.cube_map)
 	{
-		assert(desc.size.width == desc.size.height && "width should equal height in cube map texture");
+		mn_assert_msg(desc.size.width == desc.size.height, "width should equal height in cube map texture");
 	}
 
 	auto self = api->ctx;
@@ -1153,7 +1163,7 @@ _renoir_null_texture_free(Renoir* api, Renoir_Texture texture)
 {
 	auto self = api->ctx;
 	auto h = (Renoir_Handle*)texture.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 
 	mn::mutex_lock(self->mtx);
 	mn_defer(mn::mutex_unlock(self->mtx));
@@ -1166,7 +1176,7 @@ static void*
 _renoir_null_texture_native_handle(Renoir* api, Renoir_Texture texture)
 {
 	auto h = (Renoir_Handle*)texture.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 	return nullptr;
 }
 
@@ -1174,7 +1184,7 @@ static Renoir_Size
 _renoir_null_texture_size(Renoir* api, Renoir_Texture texture)
 {
 	auto h = (Renoir_Handle*)texture.handle;
-	assert(h != nullptr && h->kind == RENOIR_HANDLE_KIND_TEXTURE);
+	mn_assert(h != nullptr && h->kind == RENOIR_HANDLE_KIND_TEXTURE);
 	return h->texture.desc.size;
 }
 
@@ -1182,8 +1192,8 @@ static Renoir_Texture_Desc
 _renoir_null_texture_desc(Renoir* api, Renoir_Texture texture)
 {
 	auto h = (Renoir_Handle*)texture.handle;
-	assert(h != nullptr);
-	assert(h->kind == RENOIR_HANDLE_KIND_TEXTURE);
+	mn_assert(h != nullptr);
+	mn_assert(h->kind == RENOIR_HANDLE_KIND_TEXTURE);
 	return h->texture.desc;
 }
 
@@ -1204,7 +1214,7 @@ _renoir_null_program_free(Renoir* api, Renoir_Program program)
 {
 	auto self = api->ctx;
 	auto h = (Renoir_Handle*)program.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 
 	mn::mutex_lock(self->mtx);
 	mn_defer(mn::mutex_unlock(self->mtx));
@@ -1217,7 +1227,7 @@ _renoir_null_program_free(Renoir* api, Renoir_Program program)
 static Renoir_Compute
 _renoir_null_compute_new(Renoir* api, Renoir_Compute_Desc desc)
 {
-	assert(desc.compute.bytes != nullptr);
+	mn_assert(desc.compute.bytes != nullptr);
 	if (desc.compute.size == 0)
 		desc.compute.size = ::strlen(desc.compute.bytes);
 
@@ -1235,7 +1245,7 @@ _renoir_null_compute_free(Renoir* api, Renoir_Compute compute)
 {
 	auto self = api->ctx;
 	auto h = (Renoir_Handle*)compute.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 
 	mn::mutex_lock(self->mtx);
 	mn_defer(mn::mutex_unlock(self->mtx));
@@ -1279,8 +1289,8 @@ _renoir_null_pass_offscreen_new(Renoir* api, Renoir_Pass_Offscreen_Desc desc)
 		}
 		else
 		{
-			assert(color->texture.desc.size.width * ::powf(0.5f, desc.color[i].level) == width);
-			assert(color->texture.desc.size.height * ::powf(0.5f, desc.color[i].level) == height);
+			mn_assert(color->texture.desc.size.width * ::powf(0.5f, desc.color[i].level) == width);
+			mn_assert(color->texture.desc.size.height * ::powf(0.5f, desc.color[i].level) == height);
 		}
 	}
 
@@ -1295,8 +1305,8 @@ _renoir_null_pass_offscreen_new(Renoir* api, Renoir_Pass_Offscreen_Desc desc)
 		}
 		else
 		{
-			assert(depth->texture.desc.size.width * ::powf(0.5f, desc.depth_stencil.level) == width);
-			assert(depth->texture.desc.size.height * ::powf(0.5f, desc.depth_stencil.level) == height);
+			mn_assert(depth->texture.desc.size.width * ::powf(0.5f, desc.depth_stencil.level) == width);
+			mn_assert(depth->texture.desc.size.height * ::powf(0.5f, desc.depth_stencil.level) == height);
 		}
 	}
 
@@ -1336,7 +1346,7 @@ _renoir_null_pass_free(Renoir* api, Renoir_Pass pass)
 	mn_defer(mn::mutex_unlock(self->mtx));
 
 	auto h = (Renoir_Handle*)pass.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 	auto command = _renoir_null_command_new(self, RENOIR_COMMAND_KIND_PASS_FREE);
 	command->pass_free.handle = h;
 	_renoir_null_command_process(self, command);
@@ -1347,8 +1357,8 @@ _renoir_null_pass_size(Renoir* api, Renoir_Pass pass)
 {
 	Renoir_Size res{};
 	auto h = (Renoir_Handle*)pass.handle;
-	assert(h != nullptr);
-	assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS);
+	mn_assert(h != nullptr);
+	mn_assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS);
 
 	// if this is an on screen/window
 	if (auto swapchain = h->raster_pass.swapchain)
@@ -1369,8 +1379,8 @@ static Renoir_Pass_Offscreen_Desc
 _renoir_null_pass_offscreen_desc(Renoir* api, Renoir_Pass pass)
 {
 	auto h = (Renoir_Handle*)pass.handle;
-	assert(h != nullptr);
-	assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS);
+	mn_assert(h != nullptr);
+	mn_assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS);
 	return h->raster_pass.offscreen;
 }
 
@@ -1391,7 +1401,7 @@ _renoir_null_timer_free(struct Renoir* api, Renoir_Timer timer)
 {
 	auto self = api->ctx;
 	auto h = (Renoir_Handle*)timer.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 
 	mn::mutex_lock(self->mtx);
 	mn_defer(mn::mutex_unlock(self->mtx));
@@ -1405,8 +1415,8 @@ static bool
 _renoir_null_timer_elapsed(Renoir*, Renoir_Timer timer, uint64_t*)
 {
 	auto h = (Renoir_Handle*)timer.handle;
-	assert(h != nullptr);
-	assert(h->kind == RENOIR_HANDLE_KIND_TIMER);
+	mn_assert(h != nullptr);
+	mn_assert(h->kind == RENOIR_HANDLE_KIND_TIMER);
 	return false;
 }
 
@@ -1417,7 +1427,7 @@ _renoir_null_pass_submit(Renoir*, Renoir_Pass pass)
 	auto h = (Renoir_Handle*)pass.handle;
 	if (h != nullptr)
 	{
-		assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS ||
+		mn_assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS ||
 			   h->kind == RENOIR_HANDLE_KIND_COMPUTE_PASS);
 	}
 }
@@ -1426,45 +1436,45 @@ static void
 _renoir_null_clear(Renoir*, Renoir_Pass pass, Renoir_Clear_Desc)
 {
 	auto h = (Renoir_Handle*)pass.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 
-	assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS);
+	mn_assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS);
 }
 
 static void
 _renoir_null_use_pipeline(Renoir*, Renoir_Pass pass, Renoir_Pipeline_Desc)
 {
 	auto h = (Renoir_Handle*)pass.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 
-	assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS);
+	mn_assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS);
 }
 
 static void
 _renoir_null_use_program(Renoir*, Renoir_Pass pass, Renoir_Program)
 {
 	auto h = (Renoir_Handle*)pass.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 
-	assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS);
+	mn_assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS);
 }
 
 static void
 _renoir_null_use_compute(Renoir*, Renoir_Pass pass, Renoir_Compute)
 {
 	auto h = (Renoir_Handle*)pass.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 
-	assert(h->kind == RENOIR_HANDLE_KIND_COMPUTE_PASS);
+	mn_assert(h->kind == RENOIR_HANDLE_KIND_COMPUTE_PASS);
 }
 
 static void
 _renoir_null_scissor(Renoir*, Renoir_Pass pass, int, int, int, int)
 {
 	auto h = (Renoir_Handle*)pass.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 
-	assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS);
+	mn_assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS);
 }
 
 static void
@@ -1473,14 +1483,14 @@ _renoir_null_buffer_zero(Renoir*, Renoir_Pass pass, Renoir_Buffer buffer)
 	auto h = (Renoir_Handle*)pass.handle;
 	if (h != nullptr)
 	{
-		assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS ||
+		mn_assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS ||
 			   h->kind == RENOIR_HANDLE_KIND_COMPUTE_PASS);
 	}
 
 	auto hbuffer = (Renoir_Handle*)buffer.handle;
-	assert(hbuffer != nullptr);
+	mn_assert(hbuffer != nullptr);
 
-	assert(hbuffer->buffer.usage != RENOIR_USAGE_STATIC);
+	mn_assert(hbuffer->buffer.usage != RENOIR_USAGE_STATIC);
 }
 
 static void
@@ -1489,14 +1499,14 @@ _renoir_null_buffer_write(Renoir*, Renoir_Pass pass, Renoir_Buffer buffer, size_
 	auto h = (Renoir_Handle*)pass.handle;
 	if (h != nullptr)
 	{
-		assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS ||
+		mn_assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS ||
 			   h->kind == RENOIR_HANDLE_KIND_COMPUTE_PASS);
 	}
 
 	auto hbuffer = (Renoir_Handle*)buffer.handle;
-	assert(hbuffer != nullptr);
+	mn_assert(hbuffer != nullptr);
 
-	assert(hbuffer->buffer.usage != RENOIR_USAGE_STATIC);
+	mn_assert(hbuffer->buffer.usage != RENOIR_USAGE_STATIC);
 }
 
 static void
@@ -1505,19 +1515,19 @@ _renoir_null_texture_write(Renoir*, Renoir_Pass pass, Renoir_Texture texture, Re
 	auto h = (Renoir_Handle*)pass.handle;
 	if (h != nullptr)
 	{
-		assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS ||
+		mn_assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS ||
 			   h->kind == RENOIR_HANDLE_KIND_COMPUTE_PASS);
 	}
 
 	auto htexture = (Renoir_Handle*)texture.handle;
-	assert(htexture->texture.desc.usage != RENOIR_USAGE_STATIC);
+	mn_assert(htexture->texture.desc.usage != RENOIR_USAGE_STATIC);
 }
 
 static void
 _renoir_null_buffer_read(Renoir*, Renoir_Buffer buffer, size_t, void* bytes, size_t bytes_size)
 {
 	auto h = (Renoir_Handle*)buffer.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 	::memset(bytes, 0, bytes_size);
 }
 
@@ -1525,7 +1535,7 @@ static void
 _renoir_null_texture_read(Renoir*, Renoir_Texture texture, Renoir_Texture_Edit_Desc desc)
 {
 	auto h = (Renoir_Handle*)texture.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 
 	::memset(desc.bytes, 0, desc.bytes_size);
 }
@@ -1534,49 +1544,49 @@ static void
 _renoir_null_buffer_bind(Renoir*, Renoir_Pass pass, Renoir_Buffer, RENOIR_SHADER, int)
 {
 	auto h = (Renoir_Handle*)pass.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 
-	assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS);
+	mn_assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS);
 }
 
 static void
 _renoir_null_buffer_storage_bind(Renoir*, Renoir_Pass pass, Renoir_Buffer_Storage_Bind_Desc)
 {
 	auto h = (Renoir_Handle*)pass.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 
-	assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS);
+	mn_assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS);
 }
 
 static void
 _renoir_null_texture_bind(Renoir*, Renoir_Pass pass, Renoir_Texture texture, RENOIR_SHADER, int)
 {
 	auto h = (Renoir_Handle*)pass.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 
 	auto htex = (Renoir_Handle*)texture.handle;
-	assert(htex != nullptr);
+	mn_assert(htex != nullptr);
 }
 
 static void
 _renoir_null_texture_sampler_bind(Renoir*, Renoir_Pass pass, Renoir_Texture texture, RENOIR_SHADER, int, Renoir_Sampler_Desc )
 {
 	auto h = (Renoir_Handle*)pass.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 
 	auto htex = (Renoir_Handle*)texture.handle;
-	assert(htex != nullptr);
+	mn_assert(htex != nullptr);
 }
 
 static void
 _renoir_null_buffer_compute_bind(Renoir*, Renoir_Pass pass, Renoir_Buffer, int, RENOIR_ACCESS gpu_access)
 {
 	auto h = (Renoir_Handle*)pass.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 
-	assert(h->kind == RENOIR_HANDLE_KIND_COMPUTE_PASS);
-	assert(
-		gpu_access != RENOIR_ACCESS_NONE &&
+	mn_assert(h->kind == RENOIR_HANDLE_KIND_COMPUTE_PASS);
+	mn_assert_msg(
+		gpu_access != RENOIR_ACCESS_NONE,
 		"gpu should read, write, or both, it has no meaning to bind a buffer that the GPU cannot read or write from"
 	);
 }
@@ -1585,17 +1595,17 @@ static void
 _renoir_null_texture_compute_bind(Renoir*, Renoir_Pass pass, Renoir_Texture, int, int mip_level, RENOIR_ACCESS gpu_access)
 {
 	auto h = (Renoir_Handle*)pass.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 
-	assert(h->kind == RENOIR_HANDLE_KIND_COMPUTE_PASS);
-	assert(
-		gpu_access != RENOIR_ACCESS_NONE &&
+	mn_assert(h->kind == RENOIR_HANDLE_KIND_COMPUTE_PASS);
+	mn_assert_msg(
+		gpu_access != RENOIR_ACCESS_NONE,
 		"gpu should read, write, or both, it has no meaning to bind a texture that the GPU cannot read or write from"
 	);
 
 	if (gpu_access == RENOIR_ACCESS_READ)
 	{
-		assert(mip_level == 0 && "read only textures are bound as samplers, so you can't change mip level");
+		mn_assert_msg(mip_level == 0, "read only textures are bound as samplers, so you can't change mip level");
 	}
 
 }
@@ -1604,44 +1614,44 @@ static void
 _renoir_null_draw(Renoir*, Renoir_Pass pass, Renoir_Draw_Desc)
 {
 	auto h = (Renoir_Handle*)pass.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 
-	assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS);
+	mn_assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS);
 }
 
 static void
 _renoir_null_dispatch(Renoir*, Renoir_Pass pass, int x, int y, int z)
 {
-	assert(x >= 0 && y >= 0 && z >= 0);
+	mn_assert(x >= 0 && y >= 0 && z >= 0);
 
 	auto h = (Renoir_Handle*)pass.handle;
-	assert(h != nullptr);
+	mn_assert(h != nullptr);
 
-	assert(h->kind == RENOIR_HANDLE_KIND_COMPUTE_PASS);
+	mn_assert(h->kind == RENOIR_HANDLE_KIND_COMPUTE_PASS);
 }
 
 static void
 _renoir_null_timer_begin(Renoir*, Renoir_Pass pass, Renoir_Timer timer)
 {
 	auto h = (Renoir_Handle*)pass.handle;
-	assert(h != nullptr);
-	assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS ||
+	mn_assert(h != nullptr);
+	mn_assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS ||
 		   h->kind == RENOIR_HANDLE_KIND_COMPUTE_PASS);
 
 	auto htimer = (Renoir_Handle*)timer.handle;
-	assert(htimer != nullptr && htimer->kind == RENOIR_HANDLE_KIND_TIMER);
+	mn_assert(htimer != nullptr && htimer->kind == RENOIR_HANDLE_KIND_TIMER);
 }
 
 static void
 _renoir_null_timer_end(Renoir*, Renoir_Pass pass, Renoir_Timer timer)
 {
 	auto h = (Renoir_Handle*)pass.handle;
-	assert(h != nullptr);
-	assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS ||
+	mn_assert(h != nullptr);
+	mn_assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS ||
 		   h->kind == RENOIR_HANDLE_KIND_COMPUTE_PASS);
 
 	auto htimer = (Renoir_Handle*)timer.handle;
-	assert(htimer != nullptr && htimer->kind == RENOIR_HANDLE_KIND_TIMER);
+	mn_assert(htimer != nullptr && htimer->kind == RENOIR_HANDLE_KIND_TIMER);
 }
 
 
