@@ -1057,11 +1057,6 @@ _renoir_null_buffer_new(Renoir* api, Renoir_Buffer_Desc desc)
 		mn_unreachable_msg("a dynamic buffer with cpu access set to none is a static buffer");
 	}
 
-	if (desc.usage == RENOIR_USAGE_STATIC && desc.data == nullptr)
-	{
-		mn_unreachable_msg("a static buffer should have data to initialize it");
-	}
-
 	if (desc.type == RENOIR_BUFFER_UNIFORM && desc.data_size % 16 != 0)
 	{
 		mn_unreachable_msg("uniform buffers should be aligned to 16 bytes");
@@ -1124,21 +1119,6 @@ _renoir_null_texture_new(Renoir* api, Renoir_Texture_Desc desc)
 	if (desc.usage == RENOIR_USAGE_STATIC && (desc.access == RENOIR_ACCESS_WRITE || desc.access == RENOIR_ACCESS_READ_WRITE))
 	{
 		mn_unreachable_msg("a static texture cannot have write access");
-	}
-
-	bool no_data = true;
-	for (size_t i = 0; i < sizeof(desc.data) / sizeof(*desc.data); ++i)
-	{
-		if (desc.data[i] != nullptr)
-		{
-			no_data = false;
-			break;
-		}
-	}
-
-	if (desc.render_target == false && desc.usage == RENOIR_USAGE_STATIC && no_data)
-	{
-		mn_unreachable_msg("a static texture should have data to initialize it");
 	}
 
 	if (desc.cube_map)
