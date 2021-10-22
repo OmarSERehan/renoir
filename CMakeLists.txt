@@ -24,6 +24,8 @@ option(RENOIR_UNITY_BUILD "Combine all renoir source files into one jumbo build.
 option(RENOIR_DEBUG_LAYER "Turn on debug layer in underlying graphics api" OFF)
 option(RENOIR_LEAK "Turn on leak detector for graphics resources" OFF)
 option(RENOIR_EXAMPLES_USES_NULL "Uses renoir null implementation for examples" OFF)
+option(RENOIR_EXAMPLES_USES_GL450 "Uses renoir gl450 implementation for examples" ON)
+option(RENOIR_EXAMPLES_USES_MTL "Uses renoir mtl implementation for examples" OFF)
 
 # external dependencies
 include(CPM)
@@ -56,6 +58,8 @@ elseif (UNIX AND NOT APPLE)
 	add_dependencies(renoir renoir-gl450)
 elseif (APPLE)
 	add_subdirectory(renoir-null)
+
+	add_subdirectory(renoir-mtl)
 endif (WIN32)
 
 if (RENOIR_BUILD_EXAMPLES)

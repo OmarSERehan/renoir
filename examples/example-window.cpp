@@ -3,13 +3,15 @@
 
 #if RENOIR_EXAMPLES_USES_NULL
 #include <renoir-null/Renoir-null.h>
-#else
+#elif RENOIR_EXAMPLES_USES_GL450
 #include <renoir-gl450/Renoir-gl450.h>
+#elif RENOIR_EXAMPLES_USES_MTL
+#include <renoir-mtl/Renoir-mtl.h>
 #endif
 
 #include <assert.h>
 
-const char *vertex_shader = R"""(
+const char *glsl_vertex_shader = R"""(
 #version 450 core
 
 layout (location = 0) in vec2 pos;
@@ -24,7 +26,7 @@ void main()
 }
 )""";
 
-const char *pixel_shader = R"""(
+const char *glsl_pixel_shader = R"""(
 #version 450 core
 
 in vec3 v_color;
@@ -36,6 +38,60 @@ void main()
 	out_color = vec4(v_color, 1.0);
 }
 )""";
+
+const char *mtl_vertex_shader = R"""(
+#include <metal_stdlib>
+#include <simd/simd.h>
+using namespace metal;
+struct VS_Input
+{
+	float3 position [[attribute(0)]];
+	float3 color [[attribute(1)]];
+};
+struct PS_Input
+{
+	float4 position [[position]];
+	float3 color [[user(locn0)]];
+};
+vertex PS_Input vertex_main(VS_Input input [[stage_in]])
+{
+	PS_Input output = {};
+	output.position = float4(input.position, 1.0f);
+	output.color = input.color;
+	return output;
+}
+)""";
+
+const char *mtl_pixel_shader = R"""(
+#include <metal_stdlib>
+#include <simd/simd.h>
+using namespace metal;
+struct PS_Input
+{
+	float3 color [[user(locn0)]];
+};
+struct PS_Output
+{
+	float4 color [[color(0)]];
+};
+fragment PS_Output fragment_main(PS_Input input [[stage_in]])
+{
+	PS_Output output = {};
+	output.color = float4(input.color, 1.0f);
+	return output;
+}
+)""";
+
+#if RENOIR_EXAMPLES_USES_NULL
+const char* vertex_shader = "";
+const char* pixel_shader = "";
+#elif RENOIR_EXAMPLES_USES_GL450
+const char* vertex_shader = glsl_vertex_shader;
+const char* pixel_shader = glsl_pixel_shader;
+#elif RENOIR_EXAMPLES_USES_MTL
+const char* vertex_shader = mtl_vertex_shader;
+const char* pixel_shader = mtl_pixel_shader;
+#endif
 
 int main()
 {
