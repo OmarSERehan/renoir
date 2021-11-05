@@ -3439,6 +3439,10 @@ _renoir_dx11_handle_leak_free(IRenoir* self, Renoir_Command* command)
 				}
 			}
 		}
+		else if (h->kind == RENOIR_HANDLE_KIND_COMPUTE_PASS)
+		{
+			mn::buf_free(h->compute_pass.write_resources);
+		}
 		_renoir_dx11_handle_free(self, h);
 		break;
 	}
@@ -3455,6 +3459,7 @@ _renoir_dx11_handle_leak_free(IRenoir* self, Renoir_Command* command)
 		auto h = command->texture_free.handle;
 		if (_renoir_dx11_handle_unref(h) == false)
 			break;
+		mn::buf_free(h->texture.uavs);
 		_renoir_dx11_handle_free(self, h);
 		break;
 	}
