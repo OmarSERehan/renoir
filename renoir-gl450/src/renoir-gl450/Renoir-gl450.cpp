@@ -847,6 +847,8 @@ enum RENOIR_COMMAND_KIND
 	RENOIR_COMMAND_KIND_PROGRAM_FREE,
 	RENOIR_COMMAND_KIND_COMPUTE_NEW,
 	RENOIR_COMMAND_KIND_COMPUTE_FREE,
+	RENOIR_COMMAND_KIND_PIPELINE_NEW,
+	RENOIR_COMMAND_KIND_PIPELINE_FREE,
 	RENOIR_COMMAND_KIND_TIMER_NEW,
 	RENOIR_COMMAND_KIND_TIMER_FREE,
 	RENOIR_COMMAND_KIND_TIMER_ELAPSED,
@@ -974,6 +976,16 @@ struct Renoir_Command
 		struct
 		{
 			Renoir_Handle* handle;
+		} pipeline_new;
+
+		struct
+		{
+			Renoir_Handle* handle;
+		} pipeline_free;
+
+		struct
+		{
+			Renoir_Handle* handle;
 		} timer_new;
 
 		struct
@@ -1003,7 +1015,7 @@ struct Renoir_Command
 
 		struct
 		{
-			Renoir_Pipeline_Desc pipeline_desc;
+			Renoir_Handle* pipeline;
 		} use_pipeline;
 
 		struct
@@ -2077,6 +2089,22 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 		mn_assert(_renoir_gl450_check());
 		break;
 	}
+	case RENOIR_COMMAND_KIND_PIPELINE_NEW:
+	{
+		auto h = command->pipeline_new.handle;
+		// create pipeline here
+		mn_assert(_renoir_gl450_check());
+		break;
+	}
+	case RENOIR_COMMAND_KIND_PIPELINE_FREE:
+	{
+		auto h = command->pipeline_free.handle;
+		if (_renoir_gl450_handle_unref(h) == false)
+			break;
+		_renoir_gl450_handle_free(self, h);
+		mn_assert(_renoir_gl450_check());
+		break;
+	}
 	case RENOIR_COMMAND_KIND_TIMER_NEW:
 	{
 		auto h = command->timer_new.handle;
@@ -2314,7 +2342,7 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 	}
 	case RENOIR_COMMAND_KIND_USE_PIPELINE:
 	{
-		self->current_pipeline->pipeline.desc = command->use_pipeline.pipeline_desc;
+		self->current_pipeline = command->use_pipeline.pipeline;
 		auto h = self->current_pipeline;
 
 		if (h->pipeline.desc.rasterizer.cull == RENOIR_SWITCH_ENABLE)
@@ -3072,6 +3100,14 @@ _renoir_gl450_handle_leak_free(IRenoir* self, Renoir_Command* command)
 		_renoir_gl450_handle_free(self, h);
 		break;
 	}
+	case RENOIR_COMMAND_KIND_PIPELINE_FREE:
+	{
+		auto h = command->pipeline_free.handle;
+		if (_renoir_gl450_handle_unref(h) == false)
+			break;
+		_renoir_gl450_handle_free(self, h);
+		break;
+	}
 	}
 }
 
@@ -3532,6 +3568,42 @@ _renoir_gl450_compute_free(Renoir* api, Renoir_Compute compute)
 	_renoir_gl450_command_process(self, command);
 }
 
+static Renoir_Pipeline
+_renoir_gl450_pipeline_new(Renoir* api, Renoir_Pipeline_Desc desc)
+{
+	auto self = api->ctx;
+
+	_renoir_gl450_pipeline_desc_defaults(&desc);
+
+	mn::mutex_lock(self->mtx);
+	mn_defer(mn::mutex_unlock(self->mtx));
+
+	auto h = _renoir_gl450_handle_new(self, RENOIR_HANDLE_KIND_PIPELINE);
+	h->pipeline.desc = desc;
+
+	auto command = _renoir_gl450_command_new(self, RENOIR_COMMAND_KIND_PIPELINE_NEW);
+	command->pipeline_new.handle = h;
+	_renoir_gl450_command_process(self, command);
+
+	return Renoir_Pipeline{h};
+}
+
+static void
+_renoir_gl450_pipeline_free(Renoir* api, Renoir_Pipeline pipeline)
+{
+	auto self = api->ctx;
+	auto h = (Renoir_Handle*)pipeline.handle;
+	mn_assert(h != nullptr);
+	mn_assert(h->kind == RENOIR_HANDLE_KIND_PIPELINE);
+
+	mn::mutex_lock(self->mtx);
+	mn_defer(mn::mutex_unlock(self->mtx));
+
+	auto command = _renoir_gl450_command_new(self, RENOIR_COMMAND_KIND_PIPELINE_FREE);
+	command->pipeline_free.handle = h;
+	_renoir_gl450_command_process(self, command);
+}
+
 static Renoir_Pass
 _renoir_gl450_pass_swapchain_new(Renoir* api, Renoir_Swapchain swapchain)
 {
@@ -3862,20 +3934,21 @@ _renoir_gl450_clear(Renoir* api, Renoir_Pass pass, Renoir_Clear_Desc desc)
 }
 
 static void
-_renoir_gl450_use_pipeline(Renoir* api, Renoir_Pass pass, Renoir_Pipeline_Desc pipeline_desc)
+_renoir_gl450_use_pipeline(Renoir* api, Renoir_Pass pass, Renoir_Pipeline pipeline)
 {
 	auto self = api->ctx;
 	auto h = (Renoir_Handle*)pass.handle;
 	mn_assert(h != nullptr);
-
 	mn_assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS);
-	_renoir_gl450_pipeline_desc_defaults(&pipeline_desc);
+
+	auto h_pipeline = (Renoir_Handle*)pipeline.handle;
+	mn_assert(h_pipeline->kind == RENOIR_HANDLE_KIND_PIPELINE);
 
 	mn::mutex_lock(self->mtx);
 	auto command = _renoir_gl450_command_new(self, RENOIR_COMMAND_KIND_USE_PIPELINE);
 	mn::mutex_unlock(self->mtx);
 
-	command->use_pipeline.pipeline_desc = pipeline_desc;
+	command->use_pipeline.pipeline = h_pipeline;
 	_renoir_gl450_command_push_back(&h->raster_pass, command);
 }
 
@@ -4484,6 +4557,9 @@ _renoir_load_api(Renoir* api)
 
 	api->compute_new = _renoir_gl450_compute_new;
 	api->compute_free = _renoir_gl450_compute_free;
+
+	api->pipeline_new = _renoir_gl450_pipeline_new;
+	api->pipeline_free = _renoir_gl450_pipeline_free;
 
 	api->pass_swapchain_new = _renoir_gl450_pass_swapchain_new;
 	api->pass_offscreen_new = _renoir_gl450_pass_offscreen_new;

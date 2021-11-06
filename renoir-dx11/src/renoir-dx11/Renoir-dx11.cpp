@@ -4027,6 +4027,42 @@ _renoir_dx11_compute_free(Renoir* api, Renoir_Compute compute)
 	_renoir_dx11_command_process(self, command);
 }
 
+static Renoir_Pipeline
+_renoir_dx11_pipeline_new(Renoir* api, Renoir_Pipeline_Desc desc)
+{
+	auto self = api->ctx;
+
+	_renoir_dx11_pipeline_desc_defaults(&desc);
+
+	mn::mutex_lock(self->mtx);
+	mn_defer(mn::mutex_unlock(self->mtx));
+
+	auto h = _renoir_dx11_handle_new(self, RENOIR_HANDLE_KIND_PIPELINE);
+	h->pipeline.desc = desc;
+
+	auto command = _renoir_dx11_command_new(self, RENOIR_COMMAND_KIND_PIPELINE_NEW);
+	command->pipeline_new.handle = h;
+	_renoir_dx11_command_process(self, command);
+
+	return Renoir_Pipeline{h};
+}
+
+static void
+_renoir_dx11_pipeline_free(Renoir* api, Renoir_Pipeline pipeline)
+{
+	auto self = api->ctx;
+	auto h = (Renoir_Handle*)pipeline.handle;
+	mn_assert(h != nullptr);
+	mn_assert(h->kind == RENOIR_HANDLE_KIND_PIPELINE);
+
+	mn::mutex_lock(self->mtx);
+	mn_defer(mn::mutex_unlock(self->mtx));
+
+	auto command = _renoir_dx11_command_new(self, RENOIR_COMMAND_KIND_PIPELINE_FREE);
+	command->pipeline_free.handle = h;
+	_renoir_dx11_command_process(self, command);
+}
+
 static Renoir_Pass
 _renoir_dx11_pass_swapchain_new(Renoir* api, Renoir_Swapchain swapchain)
 {
@@ -4361,21 +4397,21 @@ _renoir_dx11_clear(Renoir* api, Renoir_Pass pass, Renoir_Clear_Desc desc)
 }
 
 static void
-_renoir_dx11_use_pipeline(Renoir* api, Renoir_Pass pass, Renoir_Pipeline_Desc pipeline_desc)
+_renoir_dx11_use_pipeline(Renoir* api, Renoir_Pass pass, Renoir_Pipeline pipeline)
 {
 	auto self = api->ctx;
 	auto h = (Renoir_Handle*)pass.handle;
 	mn_assert(h != nullptr);
-
 	mn_assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS);
-	_renoir_dx11_pipeline_desc_defaults(&pipeline_desc);
+
+	auto h_pipeline = (Renoir_Handle*)pipeline.handle;
+	mn_assert(h_pipeline->kind == RENOIR_HANDLE_KIND_PIPELINE);
 
 	mn::mutex_lock(self->mtx);
 	auto command = _renoir_dx11_command_new(self, RENOIR_COMMAND_KIND_USE_PIPELINE);
-	auto pipeline = _renoir_dx11_pipeline_get(self, pipeline_desc);
 	mn::mutex_unlock(self->mtx);
 
-	command->use_pipeline.pipeline = pipeline;
+	command->use_pipeline.pipeline = h_pipeline;
 	_renoir_dx11_command_push_back(&h->raster_pass, command);
 }
 
@@ -4986,6 +5022,9 @@ _renoir_load_api(Renoir* api)
 
 	api->compute_new = _renoir_dx11_compute_new;
 	api->compute_free = _renoir_dx11_compute_free;
+
+	api->pipeline_new = _renoir_dx11_pipeline_new;
+	api->pipeline_free = _renoir_dx11_pipeline_free;
 
 	api->pass_swapchain_new = _renoir_dx11_pass_swapchain_new;
 	api->pass_offscreen_new = _renoir_dx11_pass_offscreen_new;
