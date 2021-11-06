@@ -4595,8 +4595,8 @@ _renoir_load_api(Renoir* api)
 	api->timer_end = _renoir_gl450_timer_end;
 }
 
-Renoir*
-renoir_api()
+extern "C" Renoir*
+renoir_gl450_api()
 {
 	static Renoir _api;
 	_renoir_load_api(&_api);

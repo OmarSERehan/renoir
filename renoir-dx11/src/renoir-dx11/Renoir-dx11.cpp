@@ -5060,8 +5060,8 @@ _renoir_load_api(Renoir* api)
 	api->timer_end = _renoir_dx11_timer_end;
 }
 
-Renoir*
-renoir_api()
+extern "C" Renoir*
+renoir_dx11_api()
 {
 	static Renoir _api;
 	_renoir_load_api(&_api);

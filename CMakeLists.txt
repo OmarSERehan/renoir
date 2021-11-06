@@ -23,7 +23,6 @@ option(RENOIR_BUILD_EXAMPLES "Build example applications that showcase the renoi
 option(RENOIR_UNITY_BUILD "Combine all renoir source files into one jumbo build." ON)
 option(RENOIR_DEBUG_LAYER "Turn on debug layer in underlying graphics api" OFF)
 option(RENOIR_LEAK "Turn on leak detector for graphics resources" OFF)
-option(RENOIR_EXAMPLES_USES_NULL "Uses renoir null implementation for examples" OFF)
 
 # external dependencies
 include(CPM)

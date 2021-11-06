@@ -1743,7 +1743,7 @@ _renoir_load_api(Renoir* api)
 }
 
 extern "C" Renoir*
-renoir_api()
+renoir_null_api()
 {
 	static Renoir _api;
 	_renoir_load_api(&_api);

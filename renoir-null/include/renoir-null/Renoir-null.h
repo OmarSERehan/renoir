@@ -4,4 +4,4 @@
 #include "renoir/Renoir.h"
 
 extern "C" RENOIR_NULL_EXPORT Renoir*
-renoir_api();
+renoir_null_api();
