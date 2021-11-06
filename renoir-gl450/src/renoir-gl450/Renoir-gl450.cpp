@@ -3116,12 +3116,9 @@ static bool
 _renoir_gl450_init(Renoir* api, Renoir_Settings settings, void* display)
 {
 	static_assert(RENOIR_CONSTANT_DEFAULT_SAMPLER_CACHE_SIZE > 0, "sampler cache size should be > 0");
-	static_assert(RENOIR_CONSTANT_DEFAULT_PIPELINE_CACHE_SIZE > 0, "pipeline cache size should be > 0");
 
 	if (settings.sampler_cache_size <= 0)
 		settings.sampler_cache_size = RENOIR_CONSTANT_DEFAULT_SAMPLER_CACHE_SIZE;
-	if (settings.pipeline_cache_size <= 0)
-		settings.pipeline_cache_size = RENOIR_CONSTANT_DEFAULT_PIPELINE_CACHE_SIZE;
 
 	auto ctx = renoir_gl450_context_new(&settings, display);
 	if (ctx == nullptr && settings.external_context == false)

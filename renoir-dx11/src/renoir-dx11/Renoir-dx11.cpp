@@ -878,7 +878,6 @@ struct IRenoir
 
 	// caches
 	mn::Buf<Renoir_Handle*> sampler_cache;
-	mn::Buf<Renoir_Handle*> pipeline_cache;
 
 	// leak detection
 	mn::Map<Renoir_Handle*, Renoir_Leak_Info> alive_handles;
@@ -1310,161 +1309,6 @@ _renoir_dx11_pipeline_use(IRenoir* self, Renoir_Handle* h)
 	self->context->OMSetBlendState(h->pipeline.blend_state, nullptr, 0xFFFFFFFF);
 	self->context->OMSetDepthStencilState(h->pipeline.depth_state, 1);
 	self->context->RSSetState(h->pipeline.raster_state);
-}
-
-inline static bool
-operator==(const Renoir_Rasterizer_Desc& a, const Renoir_Rasterizer_Desc& b)
-{
-	if (a.cull != b.cull)
-		return false;
-	if (a.cull == RENOIR_SWITCH_ENABLE)
-	{
-		if (a.cull_face != b.cull_face)
-			return false;
-		if (a.cull_front != b.cull_front)
-			return false;
-	}
-	if (a.scissor != b.scissor)
-		return false;
-	return true;
-}
-
-inline static bool
-operator!=(const Renoir_Rasterizer_Desc& a, const Renoir_Rasterizer_Desc& b)
-{
-	return !(a == b);
-}
-
-inline static bool
-operator==(const Renoir_Depth_Desc& a, const Renoir_Depth_Desc& b)
-{
-	if (a.depth != b.depth)
-		return false;
-	if (a.depth == RENOIR_SWITCH_ENABLE)
-	{
-		if (a.depth_write_mask != b.depth_write_mask)
-			return false;
-	}
-	return true;
-}
-
-inline static bool
-operator!=(const Renoir_Depth_Desc& a, const Renoir_Depth_Desc& b)
-{
-	return !(a == b);
-}
-
-inline static bool
-operator==(const Renoir_Blend_Desc& a, const Renoir_Blend_Desc& b)
-{
-	if (a.enabled != b.enabled)
-		return false;
-	if (a.enabled == RENOIR_SWITCH_ENABLE)
-	{
-		if (a.src_rgb != b.src_rgb)
-			return false;
-		if (a.dst_rgb != b.dst_rgb)
-			return false;
-		if (a.src_alpha != b.src_alpha)
-			return false;
-		if (a.dst_alpha != b.dst_alpha)
-			return false;
-		if (a.eq_rgb != b.eq_rgb)
-			return false;
-		if (a.eq_alpha != b.eq_alpha)
-			return false;
-	}
-	if (a.color_mask != b.color_mask)
-		return false;
-	return true;
-}
-
-inline static bool
-operator!=(const Renoir_Blend_Desc& a, const Renoir_Blend_Desc& b)
-{
-	return !(a == b);
-}
-
-inline static bool
-operator==(const Renoir_Pipeline_Desc& a, const Renoir_Pipeline_Desc& b)
-{
-	if (a.rasterizer != b.rasterizer)
-		return false;
-	if (a.depth_stencil != b.depth_stencil)
-		return false;
-	if (a.independent_blend != b.independent_blend)
-		return false;
-	if (a.independent_blend == RENOIR_SWITCH_ENABLE)
-	{
-		for (size_t i = 0; i < RENOIR_CONSTANT_COLOR_ATTACHMENT_SIZE; ++i)
-			if (a.blend[i] != b.blend[i])
-				return false;
-	}
-	else
-	{
-		if (a.blend[0] != b.blend[0])
-			return false;
-	}
-	return true;
-}
-
-inline static Renoir_Handle*
-_renoir_dx11_pipeline_get(IRenoir* self, Renoir_Pipeline_Desc desc)
-{
-	size_t best_ix = self->pipeline_cache.count;
-	size_t first_empty_ix = self->pipeline_cache.count;
-	for (size_t i = 0; i < self->pipeline_cache.count; ++i)
-	{
-		auto hpipeline = self->pipeline_cache[i];
-		if (hpipeline == nullptr)
-		{
-			if (first_empty_ix == self->pipeline_cache.count)
-				first_empty_ix = i;
-			continue;
-		}
-
-		if (desc == hpipeline->pipeline.desc)
-		{
-			best_ix = i;
-			break;
-		}
-	}
-
-	// we found what we were looking for
-	if (best_ix < self->pipeline_cache.count)
-	{
-		auto res = self->pipeline_cache[best_ix];
-		// reorder the cache
-		for (size_t i = 0; i < best_ix; ++i)
-		{
-			auto index = best_ix - i - 1;
-			self->pipeline_cache[index + 1] = self->pipeline_cache[index];
-		}
-		self->pipeline_cache[0] = res;
-		return res;
-	}
-
-	// we didn't find a matching pipeline, so create new one
-	size_t pipeline_ix = first_empty_ix;
-
-	// we didn't find an empty slot for the new pipeline so we'll have to make one for it
-	if (pipeline_ix == self->pipeline_cache.count)
-	{
-		auto to_be_evicted = mn::buf_top(self->pipeline_cache);
-		for (size_t i = 0; i + 1 < self->pipeline_cache.count; ++i)
-		{
-			auto index = self->pipeline_cache.count - i - 1;
-			self->pipeline_cache[index] = self->pipeline_cache[index - 1];
-		}
-		_renoir_dx11_pipeline_free(self, to_be_evicted);
-		mn::log_warning("dx11: pipeline evicted");
-		pipeline_ix = 0;
-	}
-
-	// create the new pipeline and put it at the head of the cache
-	auto pipeline = _renoir_dx11_pipeline_new(self, desc);
-	self->pipeline_cache[pipeline_ix] = pipeline;
-	return pipeline;
 }
 
 inline static Renoir_Handle*
@@ -3511,12 +3355,9 @@ static bool
 _renoir_dx11_init(Renoir* api, Renoir_Settings settings, void*)
 {
 	static_assert(RENOIR_CONSTANT_DEFAULT_SAMPLER_CACHE_SIZE > 0, "sampler cache size should be > 0");
-	static_assert(RENOIR_CONSTANT_DEFAULT_PIPELINE_CACHE_SIZE > 0, "pipeline cache size should be > 0");
 
 	if (settings.sampler_cache_size <= 0)
 		settings.sampler_cache_size = RENOIR_CONSTANT_DEFAULT_SAMPLER_CACHE_SIZE;
-	if (settings.pipeline_cache_size <= 0)
-		settings.pipeline_cache_size = RENOIR_CONSTANT_DEFAULT_PIPELINE_CACHE_SIZE;
 
 	IDXGIFactory* factory = nullptr;
 	IDXGIAdapter* adapter = nullptr;
@@ -3578,10 +3419,8 @@ _renoir_dx11_init(Renoir* api, Renoir_Settings settings, void*)
 	self->settings = settings;
 	self->info_description = mn::str_new();
 	self->sampler_cache = mn::buf_new<Renoir_Handle*>();
-	self->pipeline_cache = mn::buf_new<Renoir_Handle*>();
 	self->alive_handles = mn::map_new<Renoir_Handle*, Renoir_Leak_Info>();
 	mn::buf_resize_fill(self->sampler_cache, self->settings.sampler_cache_size, nullptr);
-	mn::buf_resize_fill(self->pipeline_cache, self->settings.pipeline_cache_size, nullptr);
 
 	auto command = _renoir_dx11_command_new(self, RENOIR_COMMAND_KIND_INIT);
 	_renoir_dx11_command_process(self, command);
@@ -3629,7 +3468,6 @@ _renoir_dx11_dispose(Renoir* api)
 	mn::pool_free(self->command_pool);
 	mn::str_free(self->info_description);
 	mn::buf_free(self->sampler_cache);
-	mn::buf_free(self->pipeline_cache);
 	mn::map_free(self->alive_handles);
 	mn::free(self);
 }

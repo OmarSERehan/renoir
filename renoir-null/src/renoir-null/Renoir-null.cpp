@@ -469,7 +469,6 @@ struct IRenoir
 
 	// caches
 	mn::Buf<Renoir_Handle*> sampler_cache;
-	mn::Buf<Renoir_Handle*> pipeline_cache;
 
 	// leak detection
 	mn::Map<Renoir_Handle*, Renoir_Leak_Info> alive_handles;
@@ -874,12 +873,9 @@ static bool
 _renoir_null_init(Renoir* api, Renoir_Settings settings, void*)
 {
 	static_assert(RENOIR_CONSTANT_DEFAULT_SAMPLER_CACHE_SIZE > 0, "sampler cache size should be > 0");
-	static_assert(RENOIR_CONSTANT_DEFAULT_PIPELINE_CACHE_SIZE > 0, "pipeline cache size should be > 0");
 
 	if (settings.sampler_cache_size <= 0)
 		settings.sampler_cache_size = RENOIR_CONSTANT_DEFAULT_SAMPLER_CACHE_SIZE;
-	if (settings.pipeline_cache_size <= 0)
-		settings.pipeline_cache_size = RENOIR_CONSTANT_DEFAULT_PIPELINE_CACHE_SIZE;
 
 	auto self = mn::alloc_zerod<IRenoir>();
 	self->mtx = mn_mutex_new_with_srcloc("renoir null");
@@ -888,10 +884,8 @@ _renoir_null_init(Renoir* api, Renoir_Settings settings, void*)
 	self->settings = settings;
 	self->info_description = mn::str_new();
 	self->sampler_cache = mn::buf_new<Renoir_Handle*>();
-	self->pipeline_cache = mn::buf_new<Renoir_Handle*>();
 	self->alive_handles = mn::map_new<Renoir_Handle*, Renoir_Leak_Info>();
 	mn::buf_resize_fill(self->sampler_cache, self->settings.sampler_cache_size, nullptr);
-	mn::buf_resize_fill(self->pipeline_cache, self->settings.pipeline_cache_size, nullptr);
 
 	api->ctx = self;
 	return true;
@@ -923,7 +917,6 @@ _renoir_null_dispose(Renoir* api)
 	mn::pool_free(self->command_pool);
 	mn::str_free(self->info_description);
 	mn::buf_free(self->sampler_cache);
-	mn::buf_free(self->pipeline_cache);
 	mn::map_free(self->alive_handles);
 	mn::free(self);
 }

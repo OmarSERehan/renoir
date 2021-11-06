@@ -12,7 +12,6 @@ typedef enum RENOIR_CONSTANT {
 	RENOIR_CONSTANT_DRAW_VERTEX_BUFFER_SIZE = 10,
 	RENOIR_CONSTANT_COLOR_ATTACHMENT_SIZE = 4,
 	RENOIR_CONSTANT_BUFFER_STORAGE_SIZE = 8,
-	RENOIR_CONSTANT_DEFAULT_PIPELINE_CACHE_SIZE = 64
 } RENOIR_CONSTANT;
 
 // Enums
@@ -231,7 +230,6 @@ typedef struct Renoir_Settings {
 	RENOIR_MSAA_MODE msaa; // default: RENOIR_MSAA_MODE_NONE
 	RENOIR_VSYNC_MODE vsync; // default: RENOIR_VSYNC_MODE_ON
 	int sampler_cache_size; // default: RENOIR_CONSTANT_DEFAULT_SAMPLER_CACHE_SIZE
-	int pipeline_cache_size; // default: RENOIR_CONSTANT_DEFAULT_PIPELINE_CACHE_SIZE
 } Renoir_Settings;
 
 typedef struct Renoir_Depth_Desc {
