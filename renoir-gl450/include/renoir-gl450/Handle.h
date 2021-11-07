@@ -105,6 +105,7 @@ struct Renoir_Handle
 		struct
 		{
 			Renoir_Pipeline_Desc desc;
+			Renoir_Handle* program;
 		} pipeline;
 
 		struct

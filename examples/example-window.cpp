@@ -5,7 +5,7 @@
 #define RENOIR_BACKEND_GL450 1
 #define RENOIR_BACKEND_DX11 2
 
-#define RENOIR_BACKEND RENOIR_BACKEND_NULL
+#define RENOIR_BACKEND RENOIR_BACKEND_DX11
 
 #if RENOIR_BACKEND == RENOIR_BACKEND_NULL
 #include <renoir-null/Renoir-null.h>
@@ -126,7 +126,9 @@ int main()
 	program_desc.pixel.bytes = pixel_shader;
 	Renoir_Program program = gfx->program_new(gfx, program_desc);
 
-	auto pipeline = gfx->pipeline_new(gfx, {});
+	Renoir_Pipeline_Desc pipeline_desc{};
+	pipeline_desc.program = program;
+	auto pipeline = gfx->pipeline_new(gfx, pipeline_desc);
 
 	float triangle_data[] = {
 		 -1, -1,
@@ -183,7 +185,6 @@ int main()
 		gfx->clear(gfx, pass, clear);
 
 		gfx->use_pipeline(gfx, pass, pipeline);
-		gfx->use_program(gfx, pass, program);
 
 		Renoir_Draw_Desc draw{};
 		draw.primitive = RENOIR_PRIMITIVE_TRIANGLES;

@@ -260,6 +260,7 @@ typedef struct Renoir_Pipeline_Desc {
 	Renoir_Depth_Desc depth_stencil;
 	RENOIR_SWITCH independent_blend; // default: RENOIR_SWITCH_DISABLE
 	Renoir_Blend_Desc blend[RENOIR_CONSTANT_COLOR_ATTACHMENT_SIZE];
+	Renoir_Program program;
 } Pipeline_Desc;
 
 typedef struct Renoir_Buffer_Desc {
@@ -424,7 +425,6 @@ typedef struct Renoir
 	void (*pass_submit)(struct Renoir* api, Renoir_Pass pass);
 	void (*clear)(struct Renoir* api, Renoir_Pass pass, Renoir_Clear_Desc desc);
 	void (*use_pipeline)(struct Renoir* api, Renoir_Pass pass, Renoir_Pipeline pipeline);
-	void (*use_program)(struct Renoir* api, Renoir_Pass pass, Renoir_Program program);
 	void (*use_compute)(struct Renoir* api, Renoir_Pass pass, Renoir_Compute compute);
 	void (*scissor)(struct Renoir* api, Renoir_Pass pass, int x, int y, int width, int height);
 	// Write Functions

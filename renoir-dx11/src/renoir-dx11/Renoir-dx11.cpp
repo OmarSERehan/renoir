@@ -451,6 +451,7 @@ struct Renoir_Handle
 			ID3D11DepthStencilState* depth_state;
 			ID3D11RasterizerState* raster_state;
 			ID3D11BlendState* blend_state;
+			Renoir_Handle* program;
 		} pipeline;
 
 		struct
@@ -577,7 +578,6 @@ enum RENOIR_COMMAND_KIND
 	RENOIR_COMMAND_KIND_PASS_END,
 	RENOIR_COMMAND_KIND_PASS_CLEAR,
 	RENOIR_COMMAND_KIND_USE_PIPELINE,
-	RENOIR_COMMAND_KIND_USE_PROGRAM,
 	RENOIR_COMMAND_KIND_USE_COMPUTE,
 	RENOIR_COMMAND_KIND_SCISSOR,
 	RENOIR_COMMAND_KIND_BUFFER_CLEAR,
@@ -872,7 +872,6 @@ struct IRenoir
 
 	// command execution context
 	Renoir_Handle* current_pipeline;
-	Renoir_Handle* current_program;
 	Renoir_Handle* current_compute;
 	Renoir_Handle* current_pass;
 
@@ -1024,7 +1023,6 @@ _renoir_dx11_command_free(T* self, Renoir_Command* command)
 	case RENOIR_COMMAND_KIND_PASS_END:
 	case RENOIR_COMMAND_KIND_PASS_CLEAR:
 	case RENOIR_COMMAND_KIND_USE_PIPELINE:
-	case RENOIR_COMMAND_KIND_USE_PROGRAM:
 	case RENOIR_COMMAND_KIND_USE_COMPUTE:
 	case RENOIR_COMMAND_KIND_SCISSOR:
 	case RENOIR_COMMAND_KIND_BUFFER_READ:
@@ -1278,12 +1276,14 @@ inline static Renoir_Handle*
 _renoir_dx11_pipeline_new(IRenoir* self, Renoir_Pipeline_Desc desc)
 {
 	_renoir_dx11_pipeline_desc_defaults(&desc);
+	auto h_program = (Renoir_Handle*)desc.program.handle;
 
 	mn::mutex_lock(self->mtx);
 	mn_defer(mn::mutex_unlock(self->mtx));
 
 	auto h = _renoir_dx11_handle_new(self, RENOIR_HANDLE_KIND_PIPELINE);
 	h->pipeline.desc = desc;
+	h->pipeline.program = h_program;
 
 	auto command = _renoir_dx11_command_new(self, RENOIR_COMMAND_KIND_PIPELINE_NEW);
 	command->pipeline_new.handle = h;
@@ -2347,6 +2347,9 @@ _renoir_dx11_command_execute(IRenoir* self, Renoir_Command* command)
 		}
 		res = self->device->CreateBlendState(&blend_desc, &h->pipeline.blend_state);
 		mn_assert(SUCCEEDED(res));
+
+		if (auto h_program = h->pipeline.program)
+			_renoir_dx11_handle_ref(h_program);
 		break;
 	}
 	case RENOIR_COMMAND_KIND_PIPELINE_FREE:
@@ -2357,6 +2360,15 @@ _renoir_dx11_command_execute(IRenoir* self, Renoir_Command* command)
 		if (h->pipeline.depth_state) h->pipeline.depth_state->Release();
 		if (h->pipeline.raster_state) h->pipeline.raster_state->Release();
 		if (h->pipeline.blend_state) h->pipeline.blend_state->Release();
+
+		// issue command to free the program
+		if (auto h_program = h->pipeline.program)
+		{
+			auto command = _renoir_dx11_command_new(self, RENOIR_COMMAND_KIND_PROGRAM_FREE);
+			command->program_free.handle = h_program;
+			_renoir_dx11_command_process(self, command);
+		}
+
 		_renoir_dx11_handle_free(self, h);
 		break;
 	}
@@ -2486,7 +2498,6 @@ _renoir_dx11_command_execute(IRenoir* self, Renoir_Command* command)
 			// unbind render targets and uavs
 			self->context->OMSetRenderTargetsAndUnorderedAccessViews(0, nullptr, nullptr, 0, 0, nullptr, nullptr);
 			self->current_pipeline = nullptr;
-			self->current_program = nullptr;
 			self->current_pass = nullptr;
 
 			// if this is an off screen view with msaa we'll need to issue a read command to move the data
@@ -2653,7 +2664,6 @@ _renoir_dx11_command_execute(IRenoir* self, Renoir_Command* command)
 				ID3D11UnorderedAccessView* uav[1] = { nullptr };
 				self->context->CSSetUnorderedAccessViews(slot, 1, uav, nullptr);
 			}
-			self->current_program = nullptr;
 			self->current_pass = nullptr;
 		}
 		else
@@ -2714,28 +2724,24 @@ _renoir_dx11_command_execute(IRenoir* self, Renoir_Command* command)
 	{
 		self->current_pipeline = command->use_pipeline.pipeline;
 		_renoir_dx11_pipeline_use(self, self->current_pipeline);
-		break;
-	}
-	case RENOIR_COMMAND_KIND_USE_PROGRAM:
-	{
-		auto h = command->use_program.program;
-		self->current_program = h;
-		self->current_compute = nullptr;
-		self->context->VSSetShader(h->program.vertex_shader, NULL, 0);
-		self->context->PSSetShader(h->program.pixel_shader, NULL, 0);
-		if (h->program.geometry_shader)
-			self->context->GSSetShader(h->program.geometry_shader, NULL, 0);
-		else
-			self->context->GSSetShader(NULL, NULL, 0);
-		if (h->program.input_layout)
-			self->context->IASetInputLayout(h->program.input_layout);
+
+		if (auto h = self->current_pipeline->pipeline.program)
+		{
+			self->context->VSSetShader(h->program.vertex_shader, NULL, 0);
+			self->context->PSSetShader(h->program.pixel_shader, NULL, 0);
+			if (h->program.geometry_shader)
+				self->context->GSSetShader(h->program.geometry_shader, NULL, 0);
+			else
+				self->context->GSSetShader(NULL, NULL, 0);
+			if (h->program.input_layout)
+				self->context->IASetInputLayout(h->program.input_layout);
+		}
 		break;
 	}
 	case RENOIR_COMMAND_KIND_USE_COMPUTE:
 	{
 		auto h = command->use_compute.compute;
 		self->current_compute = h;
-		self->current_program = nullptr;
 		self->context->CSSetShader(h->compute.compute_shader, NULL, 0);
 		break;
 	}
@@ -3125,10 +3131,10 @@ _renoir_dx11_command_execute(IRenoir* self, Renoir_Command* command)
 	}
 	case RENOIR_COMMAND_KIND_DRAW:
 	{
-		mn_assert_msg(self->current_pipeline && self->current_program, "you should use a program and a pipeline before drawing");
+		mn_assert_msg(self->current_pipeline, "you should use a program and a pipeline before drawing");
 
 		auto& desc = command->draw.desc;
-		auto hprogram = self->current_program;
+		auto hprogram = self->current_pipeline->pipeline.program;
 		if (hprogram->program.input_layout == nullptr)
 			_renoir_dx11_input_layout_create(self, hprogram, desc);
 
@@ -3336,6 +3342,15 @@ _renoir_dx11_handle_leak_free(IRenoir* self, Renoir_Command* command)
 		auto h = command->pipeline_free.handle;
 		if (_renoir_dx11_handle_unref(h) == false)
 			break;
+
+		// issue command to free the program
+		if (auto h_program = h->pipeline.program)
+		{
+			auto command = _renoir_dx11_command_new(self, RENOIR_COMMAND_KIND_PROGRAM_FREE);
+			command->program_free.handle = h_program;
+			_renoir_dx11_handle_leak_free(self, command);
+		}
+
 		_renoir_dx11_handle_free(self, h);
 		break;
 	}
@@ -3871,12 +3886,16 @@ _renoir_dx11_pipeline_new(Renoir* api, Renoir_Pipeline_Desc desc)
 	auto self = api->ctx;
 
 	_renoir_dx11_pipeline_desc_defaults(&desc);
+	auto h_program = (Renoir_Handle*)desc.program.handle;
+	mn_assert(h_program);
+	mn_assert(h_program->kind == RENOIR_HANDLE_KIND_PROGRAM);
 
 	mn::mutex_lock(self->mtx);
 	mn_defer(mn::mutex_unlock(self->mtx));
 
 	auto h = _renoir_dx11_handle_new(self, RENOIR_HANDLE_KIND_PIPELINE);
 	h->pipeline.desc = desc;
+	h->pipeline.program = h_program;
 
 	auto command = _renoir_dx11_command_new(self, RENOIR_COMMAND_KIND_PIPELINE_NEW);
 	command->pipeline_new.handle = h;
@@ -4250,23 +4269,6 @@ _renoir_dx11_use_pipeline(Renoir* api, Renoir_Pass pass, Renoir_Pipeline pipelin
 	mn::mutex_unlock(self->mtx);
 
 	command->use_pipeline.pipeline = h_pipeline;
-	_renoir_dx11_command_push_back(&h->raster_pass, command);
-}
-
-static void
-_renoir_dx11_use_program(Renoir* api, Renoir_Pass pass, Renoir_Program program)
-{
-	auto self = api->ctx;
-	auto h = (Renoir_Handle*)pass.handle;
-	mn_assert(h != nullptr);
-
-	mn_assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS);
-
-	mn::mutex_lock(self->mtx);
-	auto command = _renoir_dx11_command_new(self, RENOIR_COMMAND_KIND_USE_PROGRAM);
-	mn::mutex_unlock(self->mtx);
-
-	command->use_program.program = (Renoir_Handle*)program.handle;
 	_renoir_dx11_command_push_back(&h->raster_pass, command);
 }
 
@@ -4878,7 +4880,6 @@ _renoir_load_api(Renoir* api)
 	api->pass_submit = _renoir_dx11_pass_submit;
 	api->clear = _renoir_dx11_clear;
 	api->use_pipeline = _renoir_dx11_use_pipeline;
-	api->use_program = _renoir_dx11_use_program;
 	api->use_compute = _renoir_dx11_use_compute;
 	api->scissor = _renoir_dx11_scissor;
 	api->buffer_zero = _renoir_dx11_buffer_zero;

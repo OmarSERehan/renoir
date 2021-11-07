@@ -856,7 +856,6 @@ enum RENOIR_COMMAND_KIND
 	RENOIR_COMMAND_KIND_PASS_END,
 	RENOIR_COMMAND_KIND_PASS_CLEAR,
 	RENOIR_COMMAND_KIND_USE_PIPELINE,
-	RENOIR_COMMAND_KIND_USE_PROGRAM,
 	RENOIR_COMMAND_KIND_USE_COMPUTE,
 	RENOIR_COMMAND_KIND_SCISSOR,
 	RENOIR_COMMAND_KIND_BUFFER_CLEAR,
@@ -1246,7 +1245,6 @@ struct IRenoir
 
 	// command execution context
 	Renoir_Handle* current_pipeline;
-	Renoir_Handle* current_program;
 	Renoir_Handle* current_compute;
 	Renoir_Handle* current_pass;
 
@@ -1400,7 +1398,6 @@ _renoir_gl450_command_free(T* self, Renoir_Command* command)
 	case RENOIR_COMMAND_KIND_PASS_END:
 	case RENOIR_COMMAND_KIND_PASS_CLEAR:
 	case RENOIR_COMMAND_KIND_USE_PIPELINE:
-	case RENOIR_COMMAND_KIND_USE_PROGRAM:
 	case RENOIR_COMMAND_KIND_USE_COMPUTE:
 	case RENOIR_COMMAND_KIND_SCISSOR:
 	case RENOIR_COMMAND_KIND_BUFFER_READ:
@@ -2092,7 +2089,7 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 	case RENOIR_COMMAND_KIND_PIPELINE_NEW:
 	{
 		auto h = command->pipeline_new.handle;
-		// create pipeline here
+		_renoir_gl450_handle_ref(h->pipeline.program);
 		mn_assert(_renoir_gl450_check());
 		break;
 	}
@@ -2101,6 +2098,12 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 		auto h = command->pipeline_free.handle;
 		if (_renoir_gl450_handle_unref(h) == false)
 			break;
+
+		// issue command to free the program
+		auto command = _renoir_gl450_command_new(self, RENOIR_COMMAND_KIND_PROGRAM_FREE);
+		command->program_free.handle = h->pipeline.program;
+		_renoir_gl450_command_process(self, command);
+
 		_renoir_gl450_handle_free(self, h);
 		mn_assert(_renoir_gl450_check());
 		break;
@@ -2463,15 +2466,8 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 				break;
 		}
 
-		mn_assert(_renoir_gl450_check());
-		break;
-	}
-	case RENOIR_COMMAND_KIND_USE_PROGRAM:
-	{
-		auto h = command->use_program.program;
-		self->current_program = h;
-		self->current_compute = nullptr;
-		glUseProgram(self->current_program->program.id);
+		glUseProgram(h->pipeline.program->program.id);
+
 		mn_assert(_renoir_gl450_check());
 		break;
 	}
@@ -2479,7 +2475,6 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 	{
 		auto h = command->use_compute.compute;
 		self->current_compute = h;
-		self->current_program = nullptr;
 		glUseProgram(self->current_compute->compute.id);
 		mn_assert(_renoir_gl450_check());
 		break;
@@ -2790,7 +2785,7 @@ _renoir_gl450_command_execute(IRenoir* self, Renoir_Command* command)
 	}
 	case RENOIR_COMMAND_KIND_DRAW:
 	{
-		mn_assert_msg(self->current_pipeline && self->current_program, "you should use a program and a pipeline before drawing");
+		mn_assert_msg(self->current_pipeline, "you should use a pipeline before drawing");
 
 		auto& desc = command->draw.desc;
 		glBindVertexArray(self->vao);
@@ -3105,6 +3100,12 @@ _renoir_gl450_handle_leak_free(IRenoir* self, Renoir_Command* command)
 		auto h = command->pipeline_free.handle;
 		if (_renoir_gl450_handle_unref(h) == false)
 			break;
+
+		// issue command to free the program
+		auto command = _renoir_gl450_command_new(self, RENOIR_COMMAND_KIND_PROGRAM_FREE);
+		command->program_free.handle = h->pipeline.program;
+		_renoir_gl450_handle_leak_free(self, command);
+
 		_renoir_gl450_handle_free(self, h);
 		break;
 	}
@@ -3571,12 +3572,16 @@ _renoir_gl450_pipeline_new(Renoir* api, Renoir_Pipeline_Desc desc)
 	auto self = api->ctx;
 
 	_renoir_gl450_pipeline_desc_defaults(&desc);
+	auto h_program = (Renoir_Handle*)desc.program.handle;
+	mn_assert(h_program);
+	mn_assert(h_program->kind == RENOIR_HANDLE_KIND_PROGRAM);
 
 	mn::mutex_lock(self->mtx);
 	mn_defer(mn::mutex_unlock(self->mtx));
 
 	auto h = _renoir_gl450_handle_new(self, RENOIR_HANDLE_KIND_PIPELINE);
 	h->pipeline.desc = desc;
+	h->pipeline.program = h_program;
 
 	auto command = _renoir_gl450_command_new(self, RENOIR_COMMAND_KIND_PIPELINE_NEW);
 	command->pipeline_new.handle = h;
@@ -3946,23 +3951,6 @@ _renoir_gl450_use_pipeline(Renoir* api, Renoir_Pass pass, Renoir_Pipeline pipeli
 	mn::mutex_unlock(self->mtx);
 
 	command->use_pipeline.pipeline = h_pipeline;
-	_renoir_gl450_command_push_back(&h->raster_pass, command);
-}
-
-static void
-_renoir_gl450_use_program(Renoir* api, Renoir_Pass pass, Renoir_Program program)
-{
-	auto self = api->ctx;
-	auto h = (Renoir_Handle*)pass.handle;
-	mn_assert(h != nullptr);
-
-	mn_assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS);
-
-	mn::mutex_lock(self->mtx);
-	auto command = _renoir_gl450_command_new(self, RENOIR_COMMAND_KIND_USE_PROGRAM);
-	mn::mutex_unlock(self->mtx);
-
-	command->use_program.program = (Renoir_Handle*)program.handle;
 	_renoir_gl450_command_push_back(&h->raster_pass, command);
 }
 
@@ -4572,7 +4560,6 @@ _renoir_load_api(Renoir* api)
 	api->pass_submit = _renoir_gl450_pass_submit;
 	api->clear = _renoir_gl450_clear;
 	api->use_pipeline = _renoir_gl450_use_pipeline;
-	api->use_program = _renoir_gl450_use_program;
 	api->use_compute = _renoir_gl450_use_compute;
 	api->scissor = _renoir_gl450_scissor;
 	api->buffer_zero = _renoir_gl450_buffer_zero;

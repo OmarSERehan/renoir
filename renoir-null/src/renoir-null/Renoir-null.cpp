@@ -94,6 +94,7 @@ struct Renoir_Handle
 		struct
 		{
 			Renoir_Pipeline_Desc desc;
+			Renoir_Handle* program;
 		} pipeline;
 
 		struct
@@ -192,13 +193,14 @@ enum RENOIR_COMMAND_KIND
 	RENOIR_COMMAND_KIND_SWAPCHAIN_RESIZE,
 	RENOIR_COMMAND_KIND_PASS_OFFSCREEN_NEW,
 	RENOIR_COMMAND_KIND_PASS_COMPUTE_NEW,
+	RENOIR_COMMAND_KIND_PIPELINE_NEW,
+	RENOIR_COMMAND_KIND_PIPELINE_FREE,
 	RENOIR_COMMAND_KIND_PASS_FREE,
 	RENOIR_COMMAND_KIND_BUFFER_FREE,
 	RENOIR_COMMAND_KIND_TEXTURE_FREE,
 	RENOIR_COMMAND_KIND_SAMPLER_FREE,
 	RENOIR_COMMAND_KIND_PROGRAM_FREE,
 	RENOIR_COMMAND_KIND_COMPUTE_FREE,
-	RENOIR_COMMAND_KIND_PIPELINE_FREE,
 	RENOIR_COMMAND_KIND_TIMER_FREE,
 };
 
@@ -739,11 +741,23 @@ _renoir_null_command_execute(IRenoir* self, Renoir_Command* command)
 		_renoir_null_handle_free(self, h);
 		break;
 	}
+	case RENOIR_COMMAND_KIND_PIPELINE_NEW:
+	{
+		auto h = command->pipeline_new.handle;
+		_renoir_null_handle_ref(h->pipeline.program);
+		break;
+	}
 	case RENOIR_COMMAND_KIND_PIPELINE_FREE:
 	{
 		auto h = command->pipeline_free.handle;
 		if (_renoir_null_handle_unref(h) == false)
 			break;
+
+		// issue command to free the program
+		auto command = _renoir_null_command_new(self, RENOIR_COMMAND_KIND_PROGRAM_FREE);
+		command->program_free.handle = h->pipeline.program;
+		_renoir_null_command_process(self, command);
+
 		_renoir_null_handle_free(self, h);
 		break;
 	}
@@ -854,6 +868,12 @@ _renoir_null_handle_leak_free(IRenoir* self, Renoir_Command* command)
 		auto h = command->pipeline_free.handle;
 		if (_renoir_null_handle_unref(h) == false)
 			break;
+
+		// issue command to free the program
+		auto command = _renoir_null_command_new(self, RENOIR_COMMAND_KIND_PROGRAM_FREE);
+		command->program_free.handle = h->pipeline.program;
+		_renoir_null_handle_leak_free(self, command);
+
 		_renoir_null_handle_free(self, h);
 		break;
 	}
@@ -1234,12 +1254,20 @@ _renoir_null_pipeline_new(Renoir* api, Renoir_Pipeline_Desc desc)
 	auto self = api->ctx;
 
 	_renoir_null_pipeline_desc_defaults(&desc);
+	auto h_program = (Renoir_Handle*)desc.program.handle;
+	mn_assert(h_program);
+	mn_assert(h_program->kind == RENOIR_HANDLE_KIND_PROGRAM);
 
 	mn::mutex_lock(self->mtx);
 	mn_defer(mn::mutex_unlock(self->mtx));
 
 	auto h = _renoir_null_handle_new(self, RENOIR_HANDLE_KIND_PIPELINE);
 	h->pipeline.desc = desc;
+	h->pipeline.program = h_program;
+
+	auto command = _renoir_null_command_new(self, RENOIR_COMMAND_KIND_PIPELINE_NEW);
+	command->pipeline_new.handle = h;
+	_renoir_null_command_process(self, command);
 
 	return Renoir_Pipeline{h};
 }
@@ -1455,15 +1483,6 @@ _renoir_null_use_pipeline(Renoir*, Renoir_Pass pass, Renoir_Pipeline pipeline)
 
 	auto h_pipeline = (Renoir_Handle*)pipeline.handle;
 	mn_assert(h_pipeline->kind == RENOIR_HANDLE_KIND_PIPELINE);
-}
-
-static void
-_renoir_null_use_program(Renoir*, Renoir_Pass pass, Renoir_Program)
-{
-	auto h = (Renoir_Handle*)pass.handle;
-	mn_assert(h != nullptr);
-
-	mn_assert(h->kind == RENOIR_HANDLE_KIND_RASTER_PASS);
 }
 
 static void
@@ -1715,7 +1734,6 @@ _renoir_load_api(Renoir* api)
 	api->pass_submit = _renoir_null_pass_submit;
 	api->clear = _renoir_null_clear;
 	api->use_pipeline = _renoir_null_use_pipeline;
-	api->use_program = _renoir_null_use_program;
 	api->use_compute = _renoir_null_use_compute;
 	api->scissor = _renoir_null_scissor;
 	api->buffer_zero = _renoir_null_buffer_zero;
