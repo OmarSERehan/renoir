@@ -421,3 +421,14 @@ renoir_window_native_handles(Renoir_Window* window, void** handle, void** displa
 	if (display)
 		*display = nullptr;
 }
+
+void
+renoir_window_title_set(Renoir_Window* window, char* title)
+{
+	auto self = (Renoir_Window_Macos*)window;
+	if (title)
+	{
+		self->window.title = title;
+		[self->cocoa_window setTitle: [NSString stringWithUTF8String: self->window.title]];
+	}
+}

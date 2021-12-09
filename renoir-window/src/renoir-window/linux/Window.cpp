@@ -391,7 +391,7 @@ renoir_window_poll(Renoir_Window* window)
 
 			case MotionNotify:
 			{
-				
+
 			}
 			break;
 
@@ -445,7 +445,7 @@ renoir_window_poll(Renoir_Window* window)
 			}
 		}
 	}
-	
+
 
 	return self->event;
 }
@@ -458,4 +458,15 @@ renoir_window_native_handles(Renoir_Window* window, void** handle, void** displa
 		*handle = (void*)self->handle;
 	if (display)
 		*display = self->display;
+}
+
+void
+renoir_window_title_set(Renoir_Window* window, const char* title)
+{
+	Renoir_Window_Linux* self = (Renoir_Window_Linux*)window;
+	if (title)
+	{
+		self->window.title = title;
+		XStoreName(self->display, self->handle, self->window.title);
+	}
 }

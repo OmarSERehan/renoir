@@ -185,3 +185,6 @@ renoir_window_poll(Renoir_Window* self);
 
 RENOIR_WINDOW_EXPORT void
 renoir_window_native_handles(Renoir_Window* self, void** handle, void** display);
+
+RENOIR_WINDOW_EXPORT void
+renoir_window_title_set(Renoir_Window* self, const char* title);

@@ -453,3 +453,14 @@ renoir_window_native_handles(Renoir_Window* window, void** handle, void** displa
 	if (handle) *handle = self->handle;
 	if (display) *display = nullptr;
 }
+
+void
+renoir_window_title_set(Renoir_Window* window, const char* title)
+{
+	Renoir_Window_WinOS* self = (Renoir_Window_WinOS*)window;
+	if (title)
+	{
+		self->window.title = title;
+		SetWindowTextA(self->handle, self->window.title);
+	}
+}
