@@ -12,7 +12,6 @@ typedef enum RENOIR_CONSTANT {
 	RENOIR_CONSTANT_DRAW_VERTEX_BUFFER_SIZE = 10,
 	RENOIR_CONSTANT_COLOR_ATTACHMENT_SIZE = 4,
 	RENOIR_CONSTANT_BUFFER_STORAGE_SIZE = 8,
-	RENOIR_CONSTANT_DEFAULT_PIPELINE_CACHE_SIZE = 64
 } RENOIR_CONSTANT;
 
 // Enums
@@ -209,6 +208,7 @@ typedef struct Renoir_Compute { void* handle; } Renoir_Compute;
 typedef struct Renoir_Pass { void* handle; } Renoir_Pass;
 typedef struct Renoir_Swapchain { void* handle; } Renoir_Swapchain;
 typedef struct Renoir_Timer { void* handle; } Renoir_Timer;
+typedef struct Renoir_Pipeline { void* handle; } Renoir_Pipeline;
 
 
 // Descriptons
@@ -230,7 +230,6 @@ typedef struct Renoir_Settings {
 	RENOIR_MSAA_MODE msaa; // default: RENOIR_MSAA_MODE_NONE
 	RENOIR_VSYNC_MODE vsync; // default: RENOIR_VSYNC_MODE_ON
 	int sampler_cache_size; // default: RENOIR_CONSTANT_DEFAULT_SAMPLER_CACHE_SIZE
-	int pipeline_cache_size; // default: RENOIR_CONSTANT_DEFAULT_PIPELINE_CACHE_SIZE
 } Renoir_Settings;
 
 typedef struct Renoir_Depth_Desc {
@@ -261,6 +260,7 @@ typedef struct Renoir_Pipeline_Desc {
 	Renoir_Depth_Desc depth_stencil;
 	RENOIR_SWITCH independent_blend; // default: RENOIR_SWITCH_DISABLE
 	Renoir_Blend_Desc blend[RENOIR_CONSTANT_COLOR_ATTACHMENT_SIZE];
+	Renoir_Program program;
 } Pipeline_Desc;
 
 typedef struct Renoir_Buffer_Desc {
@@ -407,6 +407,9 @@ typedef struct Renoir
 	Renoir_Compute (*compute_new)(struct Renoir* api, Renoir_Compute_Desc desc);
 	void (*compute_free)(struct Renoir* api, Renoir_Compute compute);
 
+	Renoir_Pipeline (*pipeline_new)(struct Renoir* api, Renoir_Pipeline_Desc desc);
+	void (*pipeline_free)(struct Renoir* api, Renoir_Pipeline pipeline);
+
 	Renoir_Pass (*pass_swapchain_new)(struct Renoir* api, Renoir_Swapchain view);
 	Renoir_Pass (*pass_offscreen_new)(struct Renoir* api, Renoir_Pass_Offscreen_Desc desc);
 	Renoir_Pass (*pass_compute_new)(struct Renoir* api);
@@ -421,8 +424,7 @@ typedef struct Renoir
 	// Graphics Commands
 	void (*pass_submit)(struct Renoir* api, Renoir_Pass pass);
 	void (*clear)(struct Renoir* api, Renoir_Pass pass, Renoir_Clear_Desc desc);
-	void (*use_pipeline)(struct Renoir* api, Renoir_Pass pass, Renoir_Pipeline_Desc pipeline);
-	void (*use_program)(struct Renoir* api, Renoir_Pass pass, Renoir_Program program);
+	void (*use_pipeline)(struct Renoir* api, Renoir_Pass pass, Renoir_Pipeline pipeline);
 	void (*use_compute)(struct Renoir* api, Renoir_Pass pass, Renoir_Compute compute);
 	void (*scissor)(struct Renoir* api, Renoir_Pass pass, int x, int y, int width, int height);
 	// Write Functions

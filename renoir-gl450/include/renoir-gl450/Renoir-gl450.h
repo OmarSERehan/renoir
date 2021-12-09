@@ -4,4 +4,4 @@
 #include "renoir/Renoir.h"
 
 extern "C" RENOIR_GL450_EXPORT Renoir*
-renoir_api();
+renoir_gl450_api();

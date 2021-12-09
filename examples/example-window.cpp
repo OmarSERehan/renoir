@@ -1,15 +1,23 @@
 #include <stdio.h>
 #include <renoir-window/Window.h>
 
-#if RENOIR_EXAMPLES_USES_NULL
+#define RENOIR_BACKEND_NULL 0
+#define RENOIR_BACKEND_GL450 1
+#define RENOIR_BACKEND_DX11 2
+
+#define RENOIR_BACKEND RENOIR_BACKEND_DX11
+
+#if RENOIR_BACKEND == RENOIR_BACKEND_NULL
 #include <renoir-null/Renoir-null.h>
-#else
+#elif RENOIR_BACKEND == RENOIR_BACKEND_GL450
 #include <renoir-gl450/Renoir-gl450.h>
+#elif RENOIR_BACKEND == RENOIR_BACKEND_DX11
+#include <renoir-dx11/Renoir-dx11.h>
 #endif
 
 #include <assert.h>
 
-const char *vertex_shader = R"""(
+const char *glsl_vertex_shader = R"""(
 #version 450 core
 
 layout (location = 0) in vec2 pos;
@@ -24,7 +32,7 @@ void main()
 }
 )""";
 
-const char *pixel_shader = R"""(
+const char *glsl_pixel_shader = R"""(
 #version 450 core
 
 in vec3 v_color;
@@ -37,9 +45,68 @@ void main()
 }
 )""";
 
+const char *hlsl_vertex_shader = R"""(
+struct VS_Input
+{
+	float2 pos: POSITION;
+	float3 color: COLOR0;
+};
+
+struct PS_Input
+{
+	float4 pos: SV_POSITION;
+	float3 color: COLOR0;
+};
+
+PS_Input main(VS_Input input)
+{
+	PS_Input output;
+	output.pos = float4(input.pos, 0.0, 1.0);
+	output.color = input.color;
+	return output;
+}
+)""";
+
+const char *hlsl_pixel_shader = R"""(
+struct PS_Input
+{
+	float4 pos: SV_POSITION;
+	float3 color: COLOR0;
+};
+
+struct PS_Output
+{
+	float4 color: SV_TARGET;
+};
+
+PS_Output main(PS_Input input)
+{
+	PS_Output output;
+	output.color = float4(input.color, 1.0);
+	return output;
+}
+)""";
+
+#if RENOIR_BACKEND == RENOIR_BACKEND_NULL
+const char* vertex_shader = "";
+const char* pixel_shader = "";
+#elif RENOIR_BACKEND == RENOIR_BACKEND_GL450
+const char* vertex_shader = glsl_vertex_shader;
+const char* pixel_shader = glsl_pixel_shader;
+#elif RENOIR_BACKEND == RENOIR_BACKEND_DX11
+const char* vertex_shader = hlsl_vertex_shader;
+const char* pixel_shader = hlsl_pixel_shader;
+#endif
+
 int main()
 {
-	auto gfx = renoir_api();
+	#if RENOIR_BACKEND == RENOIR_BACKEND_NULL
+		auto gfx = renoir_null_api();
+	#elif RENOIR_BACKEND == RENOIR_BACKEND_GL450
+		auto gfx = renoir_gl450_api();
+	#elif RENOIR_BACKEND == RENOIR_BACKEND_DX11
+		auto gfx = renoir_dx11_api();
+	#endif
 
 	Renoir_Settings settings{};
 	settings.defer_api_calls = false;
@@ -59,7 +126,9 @@ int main()
 	program_desc.pixel.bytes = pixel_shader;
 	Renoir_Program program = gfx->program_new(gfx, program_desc);
 
-	Renoir_Pipeline_Desc pipeline{};
+	Renoir_Pipeline_Desc pipeline_desc{};
+	pipeline_desc.program = program;
+	auto pipeline = gfx->pipeline_new(gfx, pipeline_desc);
 
 	float triangle_data[] = {
 		 -1, -1,
@@ -116,7 +185,6 @@ int main()
 		gfx->clear(gfx, pass, clear);
 
 		gfx->use_pipeline(gfx, pass, pipeline);
-		gfx->use_program(gfx, pass, program);
 
 		Renoir_Draw_Desc draw{};
 		draw.primitive = RENOIR_PRIMITIVE_TRIANGLES;
@@ -143,6 +211,7 @@ int main()
 	gfx->buffer_free(gfx, vertices);
 	gfx->buffer_free(gfx, indices);
 	gfx->swapchain_free(gfx, swapchain);
+	gfx->pipeline_free(gfx, pipeline);
 	gfx->pass_free(gfx, pass);
 	gfx->dispose(gfx);
 

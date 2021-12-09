@@ -1,15 +1,14 @@
 add_executable(example-window example-window.cpp)
-target_link_libraries(example-window renoir-window)
-
-if (RENOIR_EXAMPLES_USES_NULL)
-	target_link_libraries(example-window renoir-null)
-else ()
-	target_link_libraries(example-window renoir-gl450)
-endif ()
-target_compile_definitions(example-window
+target_link_libraries(example-window
 	PRIVATE
-	RENOIR_EXAMPLES_USES_NULL=$<BOOL:${RENOIR_EXAMPLES_USES_NULL}>
+		renoir-window
+		renoir-null
+		renoir-gl450
 )
+
+if (TARGET renoir-dx11)
+	target_link_libraries(example-window PRIVATE renoir-dx11)
+endif ()
 
 add_executable(example-window-only example-window-only.cpp)
 target_link_libraries(example-window-only renoir-window mn)
